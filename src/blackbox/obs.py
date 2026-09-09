@@ -55,15 +55,20 @@ def follow_game(recorder, is_running, log, interval: float = 5.0) -> threading.T
 
     def loop():
         while True:
-            running = is_running()
-            if running is None:
-                return
-            if running and not recorder.running:
-                log("game started, recording")
-                recorder.start()
-            elif not running and recorder.running:
-                log("game closed, recording paused")
-                recorder.stop()
+            try:
+                running = is_running()
+                if running is None:
+                    return
+                if running and not recorder.running:
+                    log("game started, recording")
+                    recorder.start()
+                    log(f"recording with {getattr(getattr(recorder, 'pipeline', None), 'name', '?')}")
+                elif not running and recorder.running:
+                    log("game closed, recording paused")
+                    recorder.stop()
+            except Exception as err:
+                log(f"recording error, will retry: {err!r}")
+                time.sleep(30)
             time.sleep(interval)
 
     thread = threading.Thread(target=loop, daemon=True)

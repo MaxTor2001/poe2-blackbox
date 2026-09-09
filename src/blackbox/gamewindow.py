@@ -47,6 +47,7 @@ def game_monitor_index() -> int | None:
     from ctypes import wintypes
 
     user32 = ctypes.windll.user32
+    user32.MonitorFromWindow.restype = ctypes.c_void_p
     target = user32.MonitorFromWindow(found[0], 2)  # MONITOR_DEFAULTTONEAREST
     monitors: list[int] = []
 
@@ -60,7 +61,15 @@ def game_monitor_index() -> int | None:
 
 
 def game_window_rect() -> tuple[int, int, int, int] | None:
-    """(x, y, w, h) of the game's client area relative to its monitor, or None."""
+    """(x, y, w, h) of the game's client area relative to its monitor, or None. Best effort."""
+    try:
+        return _game_window_rect()
+    except Exception as err:  # cropping is optional; never block recording on it
+        print(f"window rect unavailable: {err!r}")
+        return None
+
+
+def _game_window_rect():
     found = game_windows()
     if not found:
         return None
@@ -68,6 +77,8 @@ def game_window_rect() -> tuple[int, int, int, int] | None:
     from ctypes import wintypes
 
     user32 = ctypes.windll.user32
+    user32.MonitorFromWindow.restype = ctypes.c_void_p
+    user32.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
     hwnd = found[0]
     rect = wintypes.RECT()
     user32.GetClientRect(hwnd, ctypes.byref(rect))

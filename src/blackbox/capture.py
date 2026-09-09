@@ -27,6 +27,8 @@ class Pipeline:
 
 NVENC = ["-c:v", "h264_nvenc", "-preset", "p1", "-tune", "ll", "-delay", "0", "-bf", "0", "-rc-lookahead", "0", "-b:v", "8M", "-g", "30"]
 X264 = ["-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-g", "30"]
+QSV = ["-pix_fmt", "nv12", "-c:v", "h264_qsv", "-preset", "veryfast", "-b:v", "8M", "-g", "30"]
+AMF = ["-pix_fmt", "yuv420p", "-c:v", "h264_amf", "-usage", "lowlatency", "-b:v", "8M", "-g", "30"]
 
 
 def crop_filter(rect: tuple[int, int, int, int] | None) -> str:
@@ -44,6 +46,8 @@ def candidates(monitor: int | None = None, rect: tuple[int, int, int, int] | Non
         return [
             Pipeline("ddagrab+nvenc (GPU only)", ["-init_hw_device", "d3d11va", "-filter_complex", f"{dda}:framerate=30", *NVENC]),
             Pipeline("ddagrab+nvenc 1080p", ["-init_hw_device", "d3d11va", "-filter_complex", f"{dda}:framerate=30,hwdownload,format=bgra,{crop}scale=-2:'min(1080,ih)'", "-pix_fmt", "yuv420p", *NVENC]),
+            Pipeline("ddagrab+qsv 1080p", ["-init_hw_device", "d3d11va", "-filter_complex", f"{dda}:framerate=30,hwdownload,format=bgra,{crop}scale=-2:'min(1080,ih)'", *QSV]),
+            Pipeline("ddagrab+amf 1080p", ["-init_hw_device", "d3d11va", "-filter_complex", f"{dda}:framerate=30,hwdownload,format=bgra,{crop}scale=-2:'min(1080,ih)'", *AMF]),
             Pipeline("ddagrab+x264 720p", ["-init_hw_device", "d3d11va", "-filter_complex", f"{dda}:framerate=24,hwdownload,format=bgra,{crop}scale=-2:720", *X264]),
             Pipeline("gdigrab+x264 720p", ["-f", "gdigrab", "-framerate", "20", "-i", "desktop", "-vf", f"{crop}scale=-2:720", *X264]),
         ]
