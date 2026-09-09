@@ -15,12 +15,23 @@ from blackbox.obs import Clipper, Obs, follow_game
 from blackbox.log_lines import parse_line
 from blackbox.ping import Pinger
 from blackbox.store import Store
-from blackbox.paths import default_log_path
+from blackbox.paths import data_dir, default_log_path
 from blackbox.tail import follow, read_all
 from blackbox.waystone import ClipboardWatcher
 
-DB_OPTION = click.option("--db", type=Path, default=Path("blackbox.sqlite"), show_default=True)
+DB_OPTION = click.option("--db", type=Path, default=None, help="Database file (default: blackbox.sqlite in the user data folder)")
 LOG_OPTION = click.option("--log", "log_path", type=Path, default=None, help="Path to Client.txt")
+
+
+def _db(db: Path | None) -> Path:
+    return db or data_dir() / "blackbox.sqlite"
+
+
+def backfill(store: Store, path: Path) -> int:
+    """Parse the whole existing log into an empty database, so past deaths show up on first start."""
+    if store.events():
+        return 0
+    return sum(1 for line in read_all(path) if (e := parse_line(line)) and store.add(e))
 
 
 def _resolve_log(log_path: Path | None) -> Path:
@@ -40,7 +51,7 @@ def cli():
 @DB_OPTION
 def import_log(log_path, db):
     """Parse an entire Client.txt into the database."""
-    store = Store(db)
+    store = Store(_db(db))
     added = 0
     for line in read_all(_resolve_log(log_path)):
         event = parse_line(line)
@@ -66,10 +77,13 @@ def watch(log_path, db, account, sessid, clips, obs, obs_password, monitor, clip
 
 
 def _watch(log_path, db, account, sessid, clips, obs, obs_password, monitor=None, clip_seconds=30):
+    db = _db(db)
     store = Store(db)
     path = _resolve_log(log_path)
     _log_to_file(db.resolve().parent / "blackbox.log")
     click.echo(report(path, None, db.resolve().parent / "clips"))
+    if imported := backfill(store, path):
+        click.echo(f"imported {imported} events from the existing log")
     pinger = Pinger(db)
     pinger.start()
     ClipboardWatcher(db).start()
@@ -155,7 +169,7 @@ def _connect_obs(db, password) -> Clipper | None:
 @DB_OPTION
 def deaths(db):
     """List recorded deaths with the zone each happened in."""
-    store = Store(db)
+    store = Store(_db(db))
     for d in build_deaths(store.events(), store.pings(), store.snapshots(), store.clips()):
         tier = f" T{d.waystone['tier']}" if d.waystone else ""
         click.echo(f"{d.ts:%Y-%m-%d %H:%M:%S}  {d.character} lvl {d.char_level}  died in {d.zone}{tier} (area level {d.area_level})")
@@ -167,7 +181,7 @@ def deaths(db):
 def serve(db, port):
     """Serve the death journal page on localhost."""
     click.echo(f"death journal at http://127.0.0.1:{port}/")
-    _serve(db, port)
+    _serve(_db(db), port)
 
 
 def _serve(db, port):
@@ -198,6 +212,7 @@ def run(log_path, db, account, sessid, port, no_clips, monitor, clip_seconds):
     from blackbox.tray import run_tray
 
     url = f"http://127.0.0.1:{port}/"
+    db = _db(db)
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     threading.Thread(target=_serve, args=(db, port), daemon=True).start()
     click.echo(f"death journal at {url}")
@@ -209,7 +224,7 @@ def run(log_path, db, account, sessid, port, no_clips, monitor, clip_seconds):
         if _running.get("clipper"):
             _running["clipper"].close()
 
-    run_tray(url, stop)  # blocks until Quit where a tray exists; returns at once otherwise
+    run_tray(url, stop, db.resolve().parent)  # blocks until Quit where a tray exists; returns at once otherwise
     worker.join()
 
 
@@ -219,7 +234,7 @@ def run(log_path, db, account, sessid, port, no_clips, monitor, clip_seconds):
 @click.option("--grep", help="Also show up to 10 raw log lines containing this text")
 def diag(log_path, db, grep):
     """Write diag.txt with what this machine has and which log lines are not recognised."""
-    text = report(log_path, grep, db.resolve().parent / "clips")
+    text = report(log_path, grep, _db(db).resolve().parent / "clips")
     Path("diag.txt").write_text(text, encoding="utf-8")
     if HEADLESS:
         click.launch("diag.txt")

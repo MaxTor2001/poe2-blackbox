@@ -42,7 +42,19 @@ def _encoder_lines() -> list[str]:
         chosen = pick_pipeline().name
     except (RuntimeError, OSError, subprocess.SubprocessError) as err:
         chosen = f"none ({err})"
-    return [f"capture: {chosen}"] + [f"  {name} failed: {why}" for name, why in PROBE_FAILURES.items()]
+    lines = [f"capture: {chosen}"] + [f"  {name} failed: {why}" for name, why in PROBE_FAILURES.items()]
+    if PROBE_FAILURES:
+        lines.append("nvenc alone: " + _nvenc_alone())
+    return lines
+
+
+def _nvenc_alone() -> str:
+    """Encode a synthetic clip with NVENC, no screen capture involved, and report the first error lines."""
+    cmd = [ffmpeg(), "-v", "error", "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30", "-t", "1", "-c:v", "h264_nvenc", "-f", "null", "-"]
+    result = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=30)
+    if result.returncode == 0:
+        return "works"
+    return " | ".join(result.stderr.strip().splitlines()[:4]) or f"exit {result.returncode}"
 
 
 def _clips_lines(clips_dir: Path) -> list[str]:

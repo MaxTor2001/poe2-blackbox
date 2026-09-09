@@ -16,7 +16,7 @@ def make_icon_image() -> Image.Image:
     return img
 
 
-def run_tray(url: str, on_quit) -> bool:
+def run_tray(url: str, on_quit, data_dir=None) -> bool:
     """Block in the tray loop until Quit. Returns False immediately if no tray is available."""
     try:
         import pystray
@@ -28,13 +28,21 @@ def run_tray(url: str, on_quit) -> bool:
         icon.stop()
         os._exit(0)
 
-    menu = pystray.Menu(
-        pystray.MenuItem("Open death journal", lambda icon, item: webbrowser.open(url), default=True),
-        pystray.MenuItem("Quit", quit_),
-    )
+    items = [pystray.MenuItem("Open death journal", lambda icon, item: webbrowser.open(url), default=True)]
+    if data_dir:
+        items.append(pystray.MenuItem("Open clips folder", lambda icon, item: _open_folder(data_dir / "clips")))
+    items.append(pystray.MenuItem("Quit", quit_))
+    menu = pystray.Menu(*items)
     icon = pystray.Icon("blackbox", make_icon_image(), "PoE2 blackbox", menu)
     try:
         icon.run()
     except Exception:
         return False
     return True
+
+
+def _open_folder(path) -> None:
+    import click
+
+    path.mkdir(parents=True, exist_ok=True)
+    click.launch(str(path))

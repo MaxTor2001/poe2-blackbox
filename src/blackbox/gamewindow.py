@@ -57,3 +57,31 @@ def game_monitor_index() -> int | None:
 
     user32.EnumDisplayMonitors(None, None, on_monitor, 0)
     return monitors.index(target) if target in monitors else None
+
+
+def game_window_rect() -> tuple[int, int, int, int] | None:
+    """(x, y, w, h) of the game's client area relative to its monitor, or None."""
+    found = game_windows()
+    if not found:
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    hwnd = found[0]
+    rect = wintypes.RECT()
+    user32.GetClientRect(hwnd, ctypes.byref(rect))
+    origin = wintypes.POINT(0, 0)
+    user32.ClientToScreen(hwnd, ctypes.byref(origin))
+
+    class MONITORINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+
+    info = MONITORINFO()
+    info.cbSize = ctypes.sizeof(MONITORINFO)
+    user32.GetMonitorInfoW(user32.MonitorFromWindow(hwnd, 2), ctypes.byref(info))
+    x, y = origin.x - info.rcMonitor.left, origin.y - info.rcMonitor.top
+    w, h = rect.right - rect.left, rect.bottom - rect.top
+    if w < 64 or h < 64:
+        return None
+    return x, y, w, h

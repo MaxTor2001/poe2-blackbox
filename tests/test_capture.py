@@ -30,3 +30,10 @@ def test_recorder_keeps_ring_and_saves_clip(tmp_path):
 def test_save_without_segments_fails(tmp_path):
     with pytest.raises(RuntimeError):
         Recorder(tmp_path, pipeline=TESTSRC).save_replay()
+
+
+def test_crop_filter_even_and_optional():
+    from blackbox.capture import crop_filter
+
+    assert crop_filter(None) == ""
+    assert crop_filter((10, 20, 1281, 721)) == "crop=1280:720:10:20,"

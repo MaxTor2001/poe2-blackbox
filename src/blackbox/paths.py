@@ -26,6 +26,15 @@ def _log_candidates():
         yield home / ".local/share/Steam" / tail
 
 
+def data_dir() -> Path:
+    """Per-user data folder for the database, clips and log; survives program updates."""
+    from platformdirs import user_data_dir
+
+    path = Path(user_data_dir("poe2-blackbox", appauthor=False))
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def ffmpeg(name: str = "ffmpeg") -> str:
     """Bundled ffmpeg/ffprobe next to the frozen executable, otherwise the one on PATH."""
     exe = name + (".exe" if sys.platform == "win32" else "")
