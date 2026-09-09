@@ -1,5 +1,6 @@
 2025/01/16 21:04:50 13828000 2caa1679 [ENGINE] Init
 2025/01/16 21:04:54 13832703 2caa1679 [DEBUG Client 13776] Generating level 15 area "G1_town" with seed 1
+2025/01/16 21:04:52 13830000 2caa1679 [INFO Client 13776] Connecting to instance server at 101.100.146.42:6112
 2025/01/16 21:04:55 13832800 3ef2336d [INFO Client 13776] : You have entered Clearfell Encampment.
 2025/01/16 21:06:31 13930062 3ef2336f [INFO Client 13776] : 4 Items identified
 2025/01/16 21:07:00 13940000 2caa1679 [DEBUG Client 13776] Generating level 16 area "G1_2" with seed 8842912

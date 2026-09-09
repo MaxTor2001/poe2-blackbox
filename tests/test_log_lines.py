@@ -11,7 +11,7 @@ def parsed():
 
 
 def test_only_known_lines_produce_events():
-    assert [e.kind for e in parsed()] == ["area", "zone", "area", "zone", "level_up", "death"]
+    assert [e.kind for e in parsed()] == ["area", "connect", "zone", "area", "zone", "level_up", "death"]
 
 
 def test_death():
@@ -21,7 +21,7 @@ def test_death():
 
 
 def test_level_up():
-    assert parsed()[4].data == {"character": "Zahrek", "class": "Monk", "level": 2}
+    assert parsed()[5].data == {"character": "Zahrek", "class": "Monk", "level": 2}
 
 
 def test_area_generation():
@@ -36,3 +36,7 @@ def test_zone_both_formats():
 def test_whisper_containing_slain_is_ignored():
     line = "2025/01/16 21:57:00 1 a [INFO Client 1] : @From Trader: hi, has been slain. is a weird item name"
     assert parse_line(line) is None
+
+
+def test_connect():
+    assert parsed()[1].data == {"host": "101.100.146.42", "port": 6112}

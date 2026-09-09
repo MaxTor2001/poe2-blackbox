@@ -15,6 +15,7 @@ PATTERNS = {
     "area": re.compile(
         TIMESTAMP + HEADER + r'Generating level (?P<level>\d+) area "(?P<area_id>[^"]+)" with seed (?P<seed>\d+)$'
     ),
+    "connect": re.compile(TIMESTAMP + HEADER + r"Connecting to instance server at (?P<host>[\d.]+):(?P<port>\d+)$"),
     "zone": re.compile(
         TIMESTAMP + HEADER + r"(?:: You have entered (?P<name_v1>.+?)\.|\[SCENE\] Set Source \[(?P<name_v2>[^\]]+)\])$"
     ),
@@ -50,6 +51,8 @@ def _build(kind: str, m: re.Match) -> Event | None:
         return Event(ts, kind, {"name": name})
     if kind == "area":
         return Event(ts, kind, {"level": int(g["level"]), "area_id": g["area_id"], "seed": int(g["seed"])})
+    if kind == "connect":
+        return Event(ts, kind, {"host": g["host"], "port": int(g["port"])})
     if kind == "level_up":
         return Event(ts, kind, {"character": g["character"], "class": g["klass"], "level": int(g["level"])})
     return Event(ts, kind, {"character": g["character"]})

@@ -11,6 +11,7 @@
   table { border-collapse: collapse; width: 100%; max-width: 960px; }
   th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #2c2620; }
   th { color: #9c8f7a; font-weight: 500; }
+  .bad { color: #d55; }
   .muted { color: #6e6456; }
   .empty { color: #9c8f7a; padding: 2rem 0; }
 </style>
@@ -21,7 +22,7 @@
 <p class="empty">No deaths recorded yet. Run <code>blackbox watch</code> alongside the game.</p>
 {% else %}
 <table>
-  <tr><th>When</th><th>Character</th><th>Level</th><th>Zone</th><th>Area lvl</th><th>Time in zone</th></tr>
+  <tr><th>When</th><th>Character</th><th>Level</th><th>Zone</th><th>Area lvl</th><th>Time in zone</th><th>Ping, last minute</th></tr>
   {% for d in deaths %}
   <tr>
     <td>{{ d.ts.strftime('%Y-%m-%d %H:%M:%S') }}</td>
@@ -30,6 +31,7 @@
     <td>{{ d.zone or '?' }}</td>
     <td>{{ d.area_level if d.area_level is not none else '?' }}</td>
     <td>{% if d.time_in_zone %}{{ (d.time_in_zone.total_seconds() // 60) | int }} min{% else %}?{% endif %}</td>
+    <td>{% if d.ping %}avg {{ d.ping.avg_ms | round | int }} ms, max {{ d.ping.max_ms | round | int }}{% if d.ping.lost %}, <span class="bad">{{ d.ping.lost }} lost</span>{% endif %}{% else %}<span class="muted">no data</span>{% endif %}</td>
   </tr>
   {% endfor %}
 </table>

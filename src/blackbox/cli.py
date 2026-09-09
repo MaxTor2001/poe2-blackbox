@@ -6,6 +6,7 @@ import click
 
 from blackbox.journal import deaths as build_deaths
 from blackbox.log_lines import parse_line
+from blackbox.ping import Pinger
 from blackbox.store import Store
 from blackbox.tail import default_log_path, follow, read_all
 
@@ -43,13 +44,19 @@ def import_log(log_path, db):
 @LOG_OPTION
 @DB_OPTION
 def watch(log_path, db):
-    """Follow Client.txt and record events as they happen."""
+    """Follow Client.txt, record events and probe the instance server ping."""
     store = Store(db)
     path = _resolve_log(log_path)
+    pinger = Pinger(db)
+    pinger.start()
     click.echo(f"watching {path}")
     for line in follow(path):
         event = parse_line(line)
-        if event and store.add(event):
+        if not event:
+            continue
+        if event.kind == "connect":
+            pinger.target = (event.data["host"], event.data["port"])
+        if store.add(event):
             click.echo(f"{event.ts:%Y-%m-%d %H:%M:%S}  {event.kind:9} {event.data}")
 
 
@@ -57,7 +64,8 @@ def watch(log_path, db):
 @DB_OPTION
 def deaths(db):
     """List recorded deaths with the zone each happened in."""
-    for d in build_deaths(Store(db).events()):
+    store = Store(db)
+    for d in build_deaths(store.events(), store.pings()):
         click.echo(f"{d.ts:%Y-%m-%d %H:%M:%S}  {d.character} lvl {d.char_level}  died in {d.zone} (area level {d.area_level})")
 
 
