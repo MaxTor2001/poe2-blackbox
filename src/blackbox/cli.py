@@ -1,9 +1,12 @@
 """Command line entry points."""
 
+import signal
+import sys
 from pathlib import Path
 
 import click
 
+from blackbox.capture import Recorder
 from blackbox.character import Snapshotter
 from blackbox.journal import deaths as build_deaths
 from blackbox.obs import Clipper, Obs
@@ -48,9 +51,10 @@ def import_log(log_path, db):
 @DB_OPTION
 @click.option("--account", help="pathofexile.com account name; enables gear snapshots on zone entry")
 @click.option("--sessid", envvar="POESESSID", help="POESESSID cookie for a private profile")
-@click.option("--obs/--no-obs", default=True, show_default=True, help="Save an OBS replay clip on death")
+@click.option("--clips/--no-clips", default=True, show_default=True, help="Record the screen and save a clip on death")
+@click.option("--obs", is_flag=True, help="Use OBS replay buffer instead of the built-in recorder")
 @click.option("--obs-password", envvar="OBS_PASSWORD", help="obs-websocket password, if set")
-def watch(log_path, db, account, sessid, obs, obs_password):
+def watch(log_path, db, account, sessid, clips, obs, obs_password):
     """Follow Client.txt, record events, probe ping and snapshot gear on zone entry."""
     store = Store(db)
     path = _resolve_log(log_path)
@@ -61,20 +65,38 @@ def watch(log_path, db, account, sessid, obs, obs_password):
     if account:
         snapshotter = Snapshotter(db, account, sessid)
         snapshotter.start()
-    clipper = _connect_obs(db, obs_password) if obs else None
+    clipper = None
+    if clips:
+        clipper = _connect_obs(db, obs_password) if obs else _start_recorder(db)
     click.echo(f"watching {path}")
-    for line in follow(path):
-        event = parse_line(line)
-        if not event:
-            continue
-        if event.kind == "connect":
-            pinger.target = (event.data["host"], event.data["port"])
-        if event.kind == "area" and snapshotter:
-            snapshotter.request()
-        if event.kind == "death" and clipper:
-            clipper.on_death(event.ts)
-        if store.add(event):
-            click.echo(f"{event.ts:%Y-%m-%d %H:%M:%S}  {event.kind:9} {event.data}")
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    try:
+        for line in follow(path):
+            event = parse_line(line)
+            if not event:
+                continue
+            if event.kind == "connect":
+                pinger.target = (event.data["host"], event.data["port"])
+            if event.kind == "area" and snapshotter:
+                snapshotter.request()
+            if event.kind == "death" and clipper:
+                clipper.on_death(event.ts)
+            if store.add(event):
+                click.echo(f"{event.ts:%Y-%m-%d %H:%M:%S}  {event.kind:9} {event.data}")
+    finally:
+        if clipper:
+            clipper.close()
+
+
+def _start_recorder(db) -> Clipper | None:
+    recorder = Recorder(db.resolve().parent / "clips")
+    try:
+        recorder.start()
+    except (OSError, RuntimeError) as err:
+        click.echo(f"screen recording unavailable, clips disabled ({err})")
+        return None
+    click.echo(f"recording screen to {recorder.work_dir}")
+    return Clipper(db, recorder)
 
 
 def _connect_obs(db, password) -> Clipper | None:

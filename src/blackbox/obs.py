@@ -51,10 +51,18 @@ class Obs:
 
 
 class Clipper:
-    """Saves a replay clip a few seconds after each death and records its path."""
+    """Saves a replay clip a few seconds after each death and records its path.
 
-    def __init__(self, db: Path, obs: Obs, delay: float = CLIP_DELAY):
-        self.db, self.obs, self.delay = db, obs, delay
+    `backend` is anything with save_replay() -> path: Obs or capture.Recorder.
+    """
+
+    def __init__(self, db: Path, backend, delay: float = CLIP_DELAY):
+        self.db, self.backend, self.delay = db, backend, delay
+
+    def close(self) -> None:
+        stop = getattr(self.backend, "stop", None)
+        if stop:
+            stop()
 
     def on_death(self, death_ts: datetime) -> None:
         threading.Thread(target=self._clip, args=(death_ts,), daemon=True).start()
@@ -62,7 +70,7 @@ class Clipper:
     def _clip(self, death_ts: datetime) -> None:
         time.sleep(self.delay)
         try:
-            path = self.obs.save_replay()
+            path = self.backend.save_replay()
         except Exception as err:  # OBS may be closed; the journal must keep working
             print(f"clip failed: {err}")
             return
