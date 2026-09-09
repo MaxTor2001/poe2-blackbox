@@ -3,6 +3,7 @@
 import json
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -15,22 +16,46 @@ USER_AGENT = "blackbox/0.1 (+https://github.com/itguy/poe2-blackbox)"
 MIN_INTERVAL = 60.0
 
 
+class Forbidden(Exception):
+    """The site refused: these endpoints need a logged-in session (POESESSID)."""
+
+
 def _get(path: str, params: dict, sessid: str | None) -> dict | list:
     url = BASE + path + "?" + urllib.parse.urlencode({"realm": "poe2", **params})
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     if sessid:
         req.add_header("Cookie", f"POESESSID={sessid}")
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return json.load(resp)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.load(resp)
+    except urllib.error.HTTPError as err:
+        if err.code in (401, 403):
+            raise Forbidden("pathofexile.com refused the request: set POESESSID (see README)") from None
+        raise
+
+
+def name_forms(account: str) -> list[str]:
+    """`Name#1234` and `Name-1234` both occur in the wild; try the given form first."""
+    other = account.replace("#", "-") if "#" in account else account.replace("-", "#") if "-" in account else None
+    return [account] + ([other] if other else [])
 
 
 def fetch_snapshot(account: str, sessid: str | None = None) -> dict:
     """Return the last active character with its items and passives."""
-    chars = _get("get-characters", {"accountName": account}, sessid)
+    chars, used = None, account
+    for form in name_forms(account):
+        try:
+            chars, used = _get("get-characters", {"accountName": form}, sessid), form
+            break
+        except urllib.error.HTTPError as err:
+            if err.code != 404:
+                raise
+    if not chars:
+        raise RuntimeError(f"no characters found for account {account!r}")
     current = next((c for c in chars if c.get("lastActive")), chars[-1])
     name = current["name"]
-    items = _get("get-items", {"accountName": account, "character": name}, sessid)
-    passives = _get("get-passive-skills", {"accountName": account, "character": name}, sessid)
+    items = _get("get-items", {"accountName": used, "character": name}, sessid)
+    passives = _get("get-passive-skills", {"accountName": used, "character": name}, sessid)
     return {"character": current, "items": items.get("items", []), "passives": passives}
 
 
@@ -55,8 +80,11 @@ class Snapshotter(threading.Thread):
                 continue
             try:
                 snap = self.fetch(self.account, self.sessid)
+            except Forbidden as err:
+                print(f"gear snapshots disabled: {err}")
+                return
             except Exception as err:  # network or API failure must not kill the watcher
-                print(f"snapshot failed: {err}")
+                print(f"snapshot failed: {err!r}")
                 continue
             self.last_taken = time.monotonic()
             store.add_snapshot(datetime.now(), snap["character"]["name"], snap)

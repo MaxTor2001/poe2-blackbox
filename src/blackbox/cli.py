@@ -7,6 +7,7 @@ from pathlib import Path
 import click
 
 from blackbox.capture import Recorder
+from blackbox import config
 from blackbox.character import Snapshotter
 from blackbox.diag import report
 from blackbox.gamewindow import game_monitor_index, game_running
@@ -63,8 +64,8 @@ def import_log(log_path, db):
 @cli.command()
 @LOG_OPTION
 @DB_OPTION
-@click.option("--account", help="pathofexile.com account name; enables gear snapshots on zone entry")
-@click.option("--sessid", envvar="POESESSID", help="POESESSID cookie for a private profile")
+@click.option("--account", help="pathofexile.com account name (Name#1234); remembered after the first run")
+@click.option("--sessid", envvar="POESESSID", help="POESESSID cookie from pathofexile.com; remembered after the first run")
 @click.option("--clips/--no-clips", default=True, show_default=True, help="Record the screen and save a clip on death")
 @click.option("--obs", is_flag=True, help="Use OBS replay buffer instead of the built-in recorder")
 @click.option("--obs-password", envvar="OBS_PASSWORD", help="obs-websocket password, if set")
@@ -78,6 +79,8 @@ def watch(log_path, db, account, sessid, clips, obs, obs_password, monitor, clip
 
 def _watch(log_path, db, account, sessid, clips, obs, obs_password, monitor=None, clip_seconds=30):
     db = _db(db)
+    saved = config.save(account=account, sessid=sessid) if (account or sessid) else config.load()
+    account, sessid = saved.get("account"), saved.get("sessid")
     store = Store(db)
     path = _resolve_log(log_path)
     _log_to_file(db.resolve().parent / "blackbox.log")
@@ -89,6 +92,7 @@ def _watch(log_path, db, account, sessid, clips, obs, obs_password, monitor=None
     ClipboardWatcher(db).start()
     snapshotter = None
     if account:
+        click.echo(f"gear snapshots for account {account}" + ("" if sessid else " (no POESESSID: will likely be refused)"))
         snapshotter = Snapshotter(db, account, sessid)
         snapshotter.start()
     clipper = None
@@ -198,8 +202,8 @@ def _serve(db, port):
 @cli.command()
 @LOG_OPTION
 @DB_OPTION
-@click.option("--account", help="pathofexile.com account name; enables gear snapshots on zone entry")
-@click.option("--sessid", envvar="POESESSID", help="POESESSID cookie for a private profile")
+@click.option("--account", help="pathofexile.com account name (Name#1234); remembered after the first run")
+@click.option("--sessid", envvar="POESESSID", help="POESESSID cookie from pathofexile.com; remembered after the first run")
 @click.option("--port", default=8765, show_default=True)
 @click.option("--no-clips", is_flag=True, help="Do not record the screen")
 @click.option("--monitor", type=int, default=None, help="Display index to record (default: the one with the game window)")

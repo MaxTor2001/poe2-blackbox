@@ -24,8 +24,10 @@ uv run pytest
   lost samples for the minute before each death.
 - **Waystone mods**: Ctrl+C a waystone before running it; the copied text is parsed from the
   clipboard and attached to deaths in that map.
-- **Gear snapshot**: on zone entry, at most once a minute, from the pathofexile.com character window
-  (`--account NAME`; set `POESESSID` for a private profile). Stored locally as raw JSON.
+- **Gear snapshot**: on zone entry, at most once a minute, from the pathofexile.com character window.
+  The site only answers logged-in sessions, so run once with `--account "Name#1234" --sessid <POESESSID>`
+  (the cookie from your browser on pathofexile.com); both are remembered in `config.json` in the data
+  folder, in plain text, on your machine only. Stored snapshots are raw JSON.
 - **Death clips**: `watch` records the screen with ffmpeg into a ring of short segments next to the
   database (`clips/`), and a few seconds after every death saves the last minute as an mp4 linked
   from the journal. Needs `ffmpeg` on PATH; uses NVENC when available, otherwise libx264 at 1080p.
