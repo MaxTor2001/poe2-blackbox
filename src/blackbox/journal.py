@@ -17,6 +17,13 @@ class PingSummary:
 
 
 @dataclass
+class Gear:
+    taken_at: datetime
+    level: int | None
+    items: list[tuple[str, str]]  # (slot, display name)
+
+
+@dataclass
 class Death:
     ts: datetime
     character: str
@@ -26,9 +33,10 @@ class Death:
     area_level: int | None
     time_in_zone: timedelta | None
     ping: PingSummary | None = None
+    gear: Gear | None = None
 
 
-def deaths(events: list[Event], pings: list[tuple[datetime, float | None]] = ()) -> list[Death]:
+def deaths(events: list[Event], pings=(), snapshots=()) -> list[Death]:
     """Replay events in order and attach the current context to every death."""
     zone = area_level = zone_since = None
     levels: dict[str, tuple[str, int]] = {}
@@ -44,7 +52,8 @@ def deaths(events: list[Event], pings: list[tuple[datetime, float | None]] = ())
             klass, level = levels.get(e.data["character"], (None, None))
             in_zone = e.ts - zone_since if zone_since else None
             ping = summarize_pings(pings, e.ts)
-            result.append(Death(e.ts, e.data["character"], klass, level, zone, area_level, in_zone, ping))
+            gear = latest_gear(snapshots, e.data["character"], e.ts)
+            result.append(Death(e.ts, e.data["character"], klass, level, zone, area_level, in_zone, ping, gear))
     return result
 
 
@@ -57,3 +66,13 @@ def summarize_pings(pings, until: datetime) -> PingSummary | None:
     if not ok:
         return PingSummary(0, 0, len(window), len(window))
     return PingSummary(sum(ok) / len(ok), max(ok), len(window) - len(ok), len(window))
+
+
+def latest_gear(snapshots, character: str, before: datetime) -> Gear | None:
+    """Most recent snapshot of `character` taken before `before`."""
+    match = [(ts, d) for ts, c, d in snapshots if c == character and ts <= before]
+    if not match:
+        return None
+    ts, data = match[-1]
+    items = [(i.get("inventoryId", "?"), (i.get("name") or i.get("typeLine") or "?")) for i in data.get("items", [])]
+    return Gear(ts, data.get("character", {}).get("level"), items)

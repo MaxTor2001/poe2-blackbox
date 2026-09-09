@@ -4,6 +4,7 @@ from pathlib import Path
 
 import click
 
+from blackbox.character import Snapshotter
 from blackbox.journal import deaths as build_deaths
 from blackbox.log_lines import parse_line
 from blackbox.ping import Pinger
@@ -43,12 +44,18 @@ def import_log(log_path, db):
 @cli.command()
 @LOG_OPTION
 @DB_OPTION
-def watch(log_path, db):
-    """Follow Client.txt, record events and probe the instance server ping."""
+@click.option("--account", help="pathofexile.com account name; enables gear snapshots on zone entry")
+@click.option("--sessid", envvar="POESESSID", help="POESESSID cookie for a private profile")
+def watch(log_path, db, account, sessid):
+    """Follow Client.txt, record events, probe ping and snapshot gear on zone entry."""
     store = Store(db)
     path = _resolve_log(log_path)
     pinger = Pinger(db)
     pinger.start()
+    snapshotter = None
+    if account:
+        snapshotter = Snapshotter(db, account, sessid)
+        snapshotter.start()
     click.echo(f"watching {path}")
     for line in follow(path):
         event = parse_line(line)
@@ -56,6 +63,8 @@ def watch(log_path, db):
             continue
         if event.kind == "connect":
             pinger.target = (event.data["host"], event.data["port"])
+        if event.kind == "area" and snapshotter:
+            snapshotter.request()
         if store.add(event):
             click.echo(f"{event.ts:%Y-%m-%d %H:%M:%S}  {event.kind:9} {event.data}")
 
@@ -65,7 +74,7 @@ def watch(log_path, db):
 def deaths(db):
     """List recorded deaths with the zone each happened in."""
     store = Store(db)
-    for d in build_deaths(store.events(), store.pings()):
+    for d in build_deaths(store.events(), store.pings(), store.snapshots()):
         click.echo(f"{d.ts:%Y-%m-%d %H:%M:%S}  {d.character} lvl {d.char_level}  died in {d.zone} (area level {d.area_level})")
 
 

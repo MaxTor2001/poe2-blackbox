@@ -18,7 +18,7 @@ def create_app(db: Path) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     def index():
         store = Store(db)
-        records = list(reversed(deaths(store.events(), store.pings())))
+        records = list(reversed(deaths(store.events(), store.pings(), store.snapshots())))
         return TEMPLATES.get_template("index.html").render(deaths=records)
 
     return app

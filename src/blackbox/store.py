@@ -21,6 +21,12 @@ CREATE TABLE IF NOT EXISTS pings (
     host TEXT NOT NULL,
     rtt_ms REAL
 );
+CREATE TABLE IF NOT EXISTS snapshots (
+    id INTEGER PRIMARY KEY,
+    ts TEXT NOT NULL,
+    character TEXT NOT NULL,
+    data TEXT NOT NULL
+);
 """
 
 
@@ -55,3 +61,14 @@ class Store:
     def pings(self) -> list[tuple[datetime, float | None]]:
         rows = self.conn.execute("SELECT ts, rtt_ms FROM pings ORDER BY ts, id").fetchall()
         return [(datetime.fromisoformat(ts), rtt) for ts, rtt in rows]
+
+    def add_snapshot(self, ts: datetime, character: str, data: dict) -> None:
+        self.conn.execute(
+            "INSERT INTO snapshots (ts, character, data) VALUES (?, ?, ?)",
+            (ts.isoformat(), character, json.dumps(data)),
+        )
+        self.conn.commit()
+
+    def snapshots(self) -> list[tuple[datetime, str, dict]]:
+        rows = self.conn.execute("SELECT ts, character, data FROM snapshots ORDER BY ts, id").fetchall()
+        return [(datetime.fromisoformat(ts), c, json.loads(d)) for ts, c, d in rows]
