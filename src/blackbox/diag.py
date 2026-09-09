@@ -31,6 +31,10 @@ def report(log_path: Path | None, grep: str | None = None, clips_dir: Path | Non
     lines.append(f"game windows matched: {len(game_windows())}")
     if clips_dir:
         lines += _clips_lines(clips_dir)
+    from blackbox import config
+
+    saved = config.load()
+    lines.append(f"settings: {config.config_path()} ({'exists' if config.config_path().exists() else 'missing'}) account={saved.get('account') or 'none'} sessid={'set' if saved.get('sessid') else 'none'}")
     path = log_path or default_log_path()
     lines.append(f"log: {path if path else 'not found'}")
     if path and path.exists():

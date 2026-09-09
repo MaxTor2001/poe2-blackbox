@@ -101,3 +101,4 @@ class Clipper:
             print(f"clip failed: {err}")
             return
         Store(self.db).add_clip(death_ts, path)
+        print(f"clip saved: {path}")

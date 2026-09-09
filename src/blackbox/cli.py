@@ -29,9 +29,7 @@ def _db(db: Path | None) -> Path:
 
 
 def backfill(store: Store, path: Path) -> int:
-    """Parse the whole existing log into an empty database, so past deaths show up on first start."""
-    if store.count():
-        return 0
+    """Parse the whole existing log into the database (duplicates are ignored), so no past death is missed."""
     return store.add_many(e for e in map(parse_line, read_all(path)) if e)
 
 
@@ -78,11 +76,11 @@ def _watch(log_path, db, account, sessid, clips, obs, obs_password, monitor=None
     saved = config.save(account=account, sessid=sessid) if (account or sessid) else config.load()
     account, sessid = saved.get("account"), saved.get("sessid")
     store = Store(db)
+    click.echo(f"settings: {config.config_path()} account={account or 'none'} sessid={'set' if sessid else 'none'}")
     path = _resolve_log(log_path)
     _log_to_file(db.resolve().parent / "blackbox.log")
     click.echo(report(path, None, db.resolve().parent / "clips"))
-    if imported := backfill(store, path):
-        click.echo(f"imported {imported} events from the existing log")
+    click.echo(f"imported {backfill(store, path)} new events from the existing log")
     pinger = Pinger(db)
     pinger.start()
     ClipboardWatcher(db).start()
