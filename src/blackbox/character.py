@@ -13,8 +13,6 @@ from blackbox.store import Store
 
 HOSTS = [
     ("https://www.pathofexile.com/character-window/", {"realm": "poe2"}),
-    ("https://pathofexile2.com/character-window/", {}),
-    ("https://www.pathofexile.com/character-window/", {}),
 ]
 USER_AGENT = "blackbox/0.1 (+https://github.com/itguy/poe2-blackbox)"
 MIN_INTERVAL = 60.0
@@ -28,6 +26,10 @@ class WrongAccount(Exception):
     """The account returned characters that don't include the one you are playing."""
 
 
+class Unavailable(Exception):
+    """The endpoint returned something other than JSON (wrong host / no such API)."""
+
+
 def _get(path: str, params: dict, sessid: str | None, base: str, realm: dict) -> dict | list:
     url = base + path + "?" + urllib.parse.urlencode({**realm, **params})
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
@@ -35,11 +37,15 @@ def _get(path: str, params: dict, sessid: str | None, base: str, realm: dict) ->
         req.add_header("Cookie", f"POESESSID={sessid}")
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.load(resp)
+            body = resp.read()
     except urllib.error.HTTPError as err:
         if err.code in (401, 403):
-            raise Forbidden("pathofexile.com refused the request: set POESESSID (see README)") from None
+            raise Forbidden("the site refused the request; the POESESSID may be stale") from None
         raise
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        raise Unavailable(f"{base} did not return JSON (no character API here)") from None
 
 
 def name_forms(account: str) -> list[str]:
@@ -52,6 +58,8 @@ def _characters(query: dict, sessid: str | None, base: str, realm: dict) -> list
     try:
         result = _get("get-characters", query, sessid, base, realm)
         return result if isinstance(result, list) else []
+    except Unavailable:
+        return []
     except urllib.error.HTTPError as err:
         if err.code == 404:
             return []

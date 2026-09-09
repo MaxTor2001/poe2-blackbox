@@ -27,7 +27,7 @@ uv run pytest
 - **Gear snapshot**: on zone entry, at most once a minute, from the pathofexile.com character window.
   The site only answers logged-in sessions, so run once with `--account "Name#1234" --sessid <POESESSID>`
   (the cookie from your browser on pathofexile.com); both are remembered in `config.json` in the data
-  folder, in plain text, on your machine only. Stored snapshots are raw JSON.
+  folder, in plain text, on your machine only. Stored snapshots are raw JSON. NOTE: PoE2 gear needs GGG's official OAuth API (realm poe2), whose app registration is currently closed, so this is wired up but inactive until it opens; the rest of the journal works without it.
 - **Death clips**: `watch` records the screen with ffmpeg into a ring of short segments next to the
   database (`clips/`), and a few seconds after every death saves the last minute as an mp4 linked
   from the journal. Needs `ffmpeg` on PATH; uses NVENC when available, otherwise libx264 at 1080p.
