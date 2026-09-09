@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -12,36 +13,53 @@ from blackbox.paths import ffmpeg
 SEGMENT_SECONDS = 10
 KEEP_SEGMENTS = 8  # 80 s of history
 CLIP_SECONDS = 60
-ENCODERS = [("h264_nvenc", ["-preset", "p1"]), ("libx264", ["-preset", "ultrafast", "-tune", "zerolatency"])]
-
-
-def screen_input() -> list[str]:
-    """ffmpeg input arguments for the whole screen on this platform."""
-    if sys.platform == "win32":
-        return ["-f", "gdigrab", "-framerate", "30", "-i", "desktop"]
-    return ["-f", "x11grab", "-framerate", "30", "-i", os.environ.get("DISPLAY", ":0")]
-
-
 PROBE_FAILURES: dict[str, str] = {}
 
 
-def pick_encoder() -> list[str]:
-    """First encoder that can actually encode a frame on this machine; failures are kept for diag."""
-    for name, opts in ENCODERS:
-        probe = [ffmpeg(), "-v", "error", "-f", "lavfi", "-i", "testsrc=size=256x256:rate=1", "-frames:v", "1", "-pix_fmt", "yuv420p", "-c:v", name, *opts, "-f", "null", "-"]
-        result = subprocess.run(probe, capture_output=True, text=True, errors="replace")
+@dataclass
+class Pipeline:
+    """A complete capture+encode setup, cheapest variants first in `candidates()`."""
+
+    name: str
+    args: list[str]
+
+
+NVENC = ["-c:v", "h264_nvenc", "-preset", "p1", "-b:v", "8M", "-g", "30"]
+X264 = ["-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency", "-g", "30"]
+
+
+def candidates() -> list[Pipeline]:
+    if sys.platform == "win32":
+        return [
+            Pipeline("ddagrab+nvenc (GPU only)", ["-init_hw_device", "d3d11va", "-filter_complex", "ddagrab=framerate=30", *NVENC]),
+            Pipeline("ddagrab+x264 720p", ["-init_hw_device", "d3d11va", "-filter_complex", "ddagrab=framerate=24,hwdownload,format=bgra,scale=-2:720", *X264]),
+            Pipeline("gdigrab+x264 720p", ["-f", "gdigrab", "-framerate", "20", "-i", "desktop", "-vf", "scale=-2:720", *X264]),
+        ]
+    display = os.environ.get("DISPLAY", ":0")
+    grab = ["-f", "x11grab", "-framerate", "30", "-i", display]
+    return [
+        Pipeline("x11grab+nvenc", [*grab, "-vf", "scale=-2:'min(1080,ih)'", "-pix_fmt", "yuv420p", *NVENC]),
+        Pipeline("x11grab+x264 1080p", [*grab, "-vf", "scale=-2:'min(1080,ih)'", *X264]),
+    ]
+
+
+def pick_pipeline() -> Pipeline:
+    """First pipeline that records one second on this machine; failures are kept for diag."""
+    for pipe in candidates():
+        probe = [ffmpeg(), "-v", "error", "-y", *pipe.args, "-t", "1", "-f", "null", "-"]
+        result = subprocess.run(probe, capture_output=True, text=True, errors="replace", timeout=30)
         if result.returncode == 0:
-            return ["-c:v", name, *opts]
-        PROBE_FAILURES[name] = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else f"exit {result.returncode}"
-    raise RuntimeError("no working h264 encoder in ffmpeg")
+            return pipe
+        PROBE_FAILURES[pipe.name] = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else f"exit {result.returncode}"
+    raise RuntimeError("no working screen capture: " + "; ".join(f"{k}: {v}" for k, v in PROBE_FAILURES.items()))
 
 
 class Recorder:
     """Keeps the last ~80 s of screen in `work_dir`; `save_replay` writes the last minute as one file."""
 
-    def __init__(self, work_dir: Path, input_args: list[str] | None = None, segment_seconds: int = SEGMENT_SECONDS):
+    def __init__(self, work_dir: Path, pipeline: Pipeline | None = None, segment_seconds: int = SEGMENT_SECONDS):
         self.work_dir = work_dir
-        self.input_args = input_args or screen_input()
+        self.pipeline = pipeline
         self.segment_seconds = segment_seconds
         self.process: subprocess.Popen | None = None
 
@@ -49,9 +67,9 @@ class Recorder:
         self.work_dir.mkdir(parents=True, exist_ok=True)
         for old in self.work_dir.glob("seg*.ts"):
             old.unlink()
+        self.pipeline = self.pipeline or pick_pipeline()
         cmd = [
-            ffmpeg(), "-v", "error", "-y", *self.input_args,
-            "-vf", "scale=-2:'min(1080,ih)'", "-pix_fmt", "yuv420p", *pick_encoder(), "-g", "30",
+            ffmpeg(), "-v", "error", "-y", *self.pipeline.args,
             "-f", "segment", "-segment_time", str(self.segment_seconds), "-segment_wrap", str(KEEP_SEGMENTS),
             "-reset_timestamps", "1", str(self.work_dir / "seg%02d.ts"),
         ]

@@ -29,13 +29,13 @@ def report(log_path: Path | None, grep: str | None = None, clips_dir: Path | Non
 
 
 def _encoder_lines() -> list[str]:
-    from blackbox.capture import PROBE_FAILURES, pick_encoder
+    from blackbox.capture import PROBE_FAILURES, pick_pipeline
 
     try:
-        chosen = pick_encoder()[1]
+        chosen = pick_pipeline().name
     except (RuntimeError, OSError, subprocess.SubprocessError) as err:
         chosen = f"none ({err})"
-    return [f"encoder: {chosen}"] + [f"  {name} failed: {why}" for name, why in PROBE_FAILURES.items()]
+    return [f"capture: {chosen}"] + [f"  {name} failed: {why}" for name, why in PROBE_FAILURES.items()]
 
 
 def _clips_lines(clips_dir: Path) -> list[str]:

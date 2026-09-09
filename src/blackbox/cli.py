@@ -127,7 +127,7 @@ def _start_recorder(db) -> Clipper | None:
     except (OSError, RuntimeError) as err:
         click.echo(f"screen recording unavailable, clips disabled ({err})")
         return None
-    click.echo(f"recording screen to {recorder.work_dir}")
+    click.echo(f"recording screen with {recorder.pipeline.name} to {recorder.work_dir}")
     return Clipper(db, recorder)
 
 
