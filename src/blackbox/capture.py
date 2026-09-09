@@ -10,9 +10,9 @@ from pathlib import Path
 
 from blackbox.paths import ffmpeg
 
-SEGMENT_SECONDS = 10
-KEEP_SEGMENTS = 8  # 80 s of history
-CLIP_SECONDS = 60
+SEGMENT_SECONDS = 5
+KEEP_SEGMENTS = 14  # 70 s of history, enough for the longest --clip-seconds we allow
+CLIP_SECONDS = 30
 PROBE_FAILURES: dict[str, str] = {}
 NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}  # ffmpeg must not pop a console
 
@@ -53,21 +53,28 @@ def pick_pipeline(monitor: int | None = None) -> Pipeline:
         result = subprocess.run(probe, capture_output=True, text=True, errors="replace", timeout=30, **NO_WINDOW)
         if result.returncode == 0:
             return pipe
-        PROBE_FAILURES[pipe.name] = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else f"exit {result.returncode}"
+        PROBE_FAILURES[pipe.name] = " | ".join(result.stderr.strip().splitlines()[-4:]) or f"exit {result.returncode}"
     raise RuntimeError("no working screen capture: " + "; ".join(f"{k}: {v}" for k, v in PROBE_FAILURES.items()))
 
 
 class Recorder:
-    """Keeps the last ~80 s of screen in `work_dir`; `save_replay` writes the last minute as one file."""
+    """Keeps the last ~70 s of screen in `work_dir`; `save_replay` writes the last `clip_seconds` as one file."""
 
-    def __init__(self, work_dir: Path, pipeline: Pipeline | None = None, segment_seconds: int = SEGMENT_SECONDS, monitor: int | None = None):
+    def __init__(self, work_dir: Path, pipeline: Pipeline | None = None, segment_seconds: int = SEGMENT_SECONDS, monitor: int | None = None, clip_seconds: int = CLIP_SECONDS):
         self.work_dir = work_dir
         self.pipeline = pipeline
         self.monitor = monitor
         self.segment_seconds = segment_seconds
+        self.clip_seconds = clip_seconds
         self.process: subprocess.Popen | None = None
 
+    @property
+    def running(self) -> bool:
+        return self.process is not None and self.process.poll() is None
+
     def start(self) -> None:
+        if self.running:
+            return
         self.work_dir.mkdir(parents=True, exist_ok=True)
         for old in self.work_dir.glob("seg*.ts"):
             old.unlink()
@@ -80,13 +87,14 @@ class Recorder:
         self.process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stderr=(self.work_dir / "ffmpeg.log").open("ab"), **NO_WINDOW)
 
     def stop(self) -> None:
-        if self.process:
+        if self.running:
             self.process.terminate()
             self.process.wait(timeout=10)
+        self.process = None
 
     def save_replay(self) -> str:
-        """Concatenate the segments touched within the last CLIP_SECONDS into one mp4."""
-        cutoff = time.time() - CLIP_SECONDS - self.segment_seconds
+        """Concatenate the segments touched within the last `clip_seconds` into one mp4."""
+        cutoff = time.time() - self.clip_seconds - self.segment_seconds
         recent = sorted((p for p in self.work_dir.glob("seg*.ts") if p.stat().st_mtime >= cutoff), key=lambda p: p.stat().st_mtime)
         if not recent:
             raise RuntimeError("no recorded segments yet")

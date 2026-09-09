@@ -88,3 +88,19 @@ def latest_gear(snapshots, character: str, before: datetime) -> Gear | None:
     ts, data = match[-1]
     items = [(i.get("inventoryId", "?"), (i.get("name") or i.get("typeLine") or "?")) for i in data.get("items", [])]
     return Gear(ts, data.get("character", {}).get("level"), items)
+
+
+def summary(records: list[Death]) -> dict:
+    """Per-character and per-zone death counts for the journal header."""
+    by_char: dict[str, dict] = {}
+    by_zone: dict[str, int] = {}
+    for d in records:
+        c = by_char.setdefault(d.character, {"class": d.klass, "count": 0, "last": d.ts, "level": d.char_level})
+        c["count"] += 1
+        if d.ts >= c["last"]:
+            c["last"], c["level"], c["class"] = d.ts, d.char_level, d.klass or c["class"]
+        if d.zone:
+            by_zone[d.zone] = by_zone.get(d.zone, 0) + 1
+    zones = sorted(by_zone.items(), key=lambda kv: -kv[1])[:5]
+    chars = sorted(by_char.items(), key=lambda kv: kv[1]["last"], reverse=True)
+    return {"characters": chars, "zones": zones, "total": len(records)}

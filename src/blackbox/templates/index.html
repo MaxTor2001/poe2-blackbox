@@ -14,6 +14,11 @@
   details ul { margin: .25rem 0 0; padding-left: 1rem; font-size: 13px; }
   summary { cursor: pointer; }
   a { color: #e0a458; }
+  .cards { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; max-width: 960px; }
+  .card { background: #1d1915; border: 1px solid #2c2620; border-radius: 6px; padding: .75rem 1rem; min-width: 12rem; flex: 1; }
+  .card .big { font-size: 2rem; font-weight: 600; color: #d55; }
+  .card .label { color: #9c8f7a; margin-bottom: .25rem; }
+  .count { color: #e0a458; }
   .bad { color: #d55; }
   .muted { color: #6e6456; }
   .empty { color: #9c8f7a; padding: 2rem 0; }
@@ -24,6 +29,15 @@
 {% if not deaths %}
 <p class="empty">No deaths recorded yet. Run <code>blackbox watch</code> alongside the game.</p>
 {% else %}
+<div class="cards">
+  <div class="card"><div class="big">{{ summary.total }}</div><div class="muted">deaths recorded</div></div>
+  <div class="card"><div class="label">Characters</div>
+    {% for name, c in summary.characters[:6] %}<div><b>{{ name }}</b> <span class="muted">{{ c.class or '' }}{% if c.level %} · lvl {{ c.level }}{% endif %}</span> <span class="count">×{{ c.count }}</span></div>{% endfor %}
+  </div>
+  <div class="card"><div class="label">Deadliest zones</div>
+    {% for zone, n in summary.zones %}<div>{{ zone }} <span class="count">×{{ n }}</span></div>{% endfor %}
+  </div>
+</div>
 <table>
   <tr><th>When</th><th>Character</th><th>Level</th><th>Zone</th><th>Area lvl</th><th>Time in zone</th><th>Waystone</th><th>Ping, last minute</th><th>Gear</th><th>Clip</th></tr>
   {% for d in deaths %}

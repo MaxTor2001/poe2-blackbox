@@ -50,6 +50,27 @@ class Obs:
         return self.request("GetLastReplayBufferReplay")["savedReplayPath"]
 
 
+def follow_game(recorder, is_running, log, interval: float = 5.0) -> threading.Thread:
+    """Start/stop `recorder` as the game window appears/disappears. No-op where presence is unknown."""
+
+    def loop():
+        while True:
+            running = is_running()
+            if running is None:
+                return
+            if running and not recorder.running:
+                log("game started, recording")
+                recorder.start()
+            elif not running and recorder.running:
+                log("game closed, recording paused")
+                recorder.stop()
+            time.sleep(interval)
+
+    thread = threading.Thread(target=loop, daemon=True)
+    thread.start()
+    return thread
+
+
 class Clipper:
     """Saves a replay clip a few seconds after each death and records its path.
 

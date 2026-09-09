@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from jinja2 import Environment, FileSystemLoader
 
-from blackbox.journal import deaths
+from blackbox.journal import deaths, summary
 from blackbox.store import Store
 
 TEMPLATES = Environment(loader=FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
@@ -20,7 +20,7 @@ def create_app(db: Path) -> FastAPI:
     def index():
         store = Store(db)
         records = list(reversed(deaths(store.events(), store.pings(), store.snapshots(), store.clips())))
-        return TEMPLATES.get_template("index.html").render(deaths=records)
+        return TEMPLATES.get_template("index.html").render(deaths=records, summary=summary(records))
 
     @app.get("/clip/{death_ts}")
     def clip(death_ts: str):

@@ -19,9 +19,13 @@ SYSTEM_MESSAGE = re.compile(r"\] : ")  # chat-style client messages: deaths, lev
 def report(log_path: Path | None, grep: str | None = None, clips_dir: Path | None = None) -> str:
     lines = [f"platform: {platform.platform()}", f"ffmpeg: {ffmpeg()} ({'found' if shutil.which(ffmpeg()) or Path(ffmpeg()).exists() else 'missing'})"]
     lines += _encoder_lines()
-    from blackbox.gamewindow import game_monitor_index
+    from blackbox.gamewindow import game_monitor_index, visible_windows
 
-    lines.append(f"game window: {'display ' + str(game_monitor_index()) if game_monitor_index() is not None else 'not found (is the game running?)'}")
+    idx = game_monitor_index()
+    lines.append(f"game window: {'display ' + str(idx) if idx is not None else 'not found (is the game running?)'}")
+    exile = [t for _, t in visible_windows() if "exile" in t.lower()]
+    if exile:
+        lines.append("windows mentioning exile: " + "; ".join(exile))
     if clips_dir:
         lines += _clips_lines(clips_dir)
     path = log_path or default_log_path()
