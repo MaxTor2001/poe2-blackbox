@@ -16,7 +16,8 @@ SNAP = {
 def test_snapshotter_stores_and_throttles(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(character, "MIN_INTERVAL", 0.2)
-    snapper = Snapshotter(tmp_path / "t.sqlite", "acct", None, fetch=lambda a, s: calls.append(a) or SNAP)
+    snapper = Snapshotter(tmp_path / "t.sqlite", "acct", None, fetch=lambda a, s, c: calls.append(c) or SNAP)
+    snapper.current = "Zahrek"
     snapper.start()
     snapper.request()
     time.sleep(0.05)
@@ -24,7 +25,7 @@ def test_snapshotter_stores_and_throttles(tmp_path, monkeypatch):
     time.sleep(0.3)
     snapper.request()
     time.sleep(0.05)
-    assert calls == ["acct", "acct"]
+    assert calls == ["Zahrek", "Zahrek"]
     snaps = Store(tmp_path / "t.sqlite").snapshots()
     assert [c for _, c, _ in snaps] == ["Zahrek", "Zahrek"]
 
@@ -37,3 +38,12 @@ def test_latest_gear_picks_last_before_death():
     assert gear.level == 91
     assert gear.items == [("Weapon", "Doom Staff"), ("Helm", "Iron Crown")]
     assert latest_gear(snaps, "Nobody", t) is None
+
+
+def test_pick_prefers_named_character():
+    from blackbox.character import _pick
+
+    chars = [{"name": "VendigosSSS", "level": 1}, {"name": "QuicklyDruid", "level": 5, "lastActive": True}]
+    assert _pick(chars, "QuicklyDruid")["name"] == "QuicklyDruid"
+    assert _pick([{"name": "A"}, {"name": "B"}], "Missing")["name"] == "B"  # fall back to last
+    assert _pick(chars, None)["name"] == "QuicklyDruid"  # lastActive when no name given

@@ -40,8 +40,8 @@ def name_forms(account: str) -> list[str]:
     return [account] + ([other] if other else [])
 
 
-def fetch_snapshot(account: str, sessid: str | None = None) -> dict:
-    """Return the last active character with its items and passives."""
+def fetch_snapshot(account: str, sessid: str | None = None, character: str | None = None) -> dict:
+    """Snapshot `character` (the one you are playing, known from the log); else the site's best guess."""
     chars, used = None, account
     for form in name_forms(account):
         try:
@@ -52,11 +52,19 @@ def fetch_snapshot(account: str, sessid: str | None = None) -> dict:
                 raise
     if not chars:
         raise RuntimeError(f"no characters found for account {account!r}")
-    current = next((c for c in chars if c.get("lastActive")), chars[-1])
-    name = current["name"]
+    meta = _pick(chars, character)
+    name = meta["name"]
     items = _get("get-items", {"accountName": used, "character": name}, sessid)
     passives = _get("get-passive-skills", {"accountName": used, "character": name}, sessid)
-    return {"character": current, "items": items.get("items", []), "passives": passives}
+    return {"character": meta, "items": items.get("items", []), "passives": passives}
+
+
+def _pick(chars: list[dict], character: str | None) -> dict:
+    if character:
+        match = next((c for c in chars if c.get("name") == character), None)
+        if match:
+            return match
+    return next((c for c in chars if c.get("lastActive")), chars[-1])
 
 
 class Snapshotter(threading.Thread):
@@ -67,8 +75,11 @@ class Snapshotter(threading.Thread):
         self.db, self.account, self.sessid, self.fetch = db, account, sessid, fetch
         self.wanted = threading.Event()
         self.last_taken = 0.0
+        self.current: str | None = None  # character you are playing, set from the log
 
-    def request(self) -> None:
+    def request(self, character: str | None = None) -> None:
+        if character:
+            self.current = character
         self.wanted.set()
 
     def run(self):
@@ -79,7 +90,7 @@ class Snapshotter(threading.Thread):
             if time.monotonic() - self.last_taken < MIN_INTERVAL:
                 continue
             try:
-                snap = self.fetch(self.account, self.sessid)
+                snap = self.fetch(self.account, self.sessid, self.current)
             except Forbidden as err:
                 print(f"gear snapshots disabled: {err}")
                 return

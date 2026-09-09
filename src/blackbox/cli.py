@@ -88,6 +88,7 @@ def _watch(log_path, db, account, sessid, clips, obs, obs_password, monitor=None
     if account:
         click.echo(f"gear snapshots for account {account}" + ("" if sessid else " (no POESESSID: will likely be refused)"))
         snapshotter = Snapshotter(db, account, sessid)
+        snapshotter.current = _last_character(store)
         snapshotter.start()
     clipper = None
     if clips:
@@ -101,7 +102,9 @@ def _watch(log_path, db, account, sessid, clips, obs, obs_password, monitor=None
                 continue
             if event.kind == "connect":
                 pinger.target = (event.data["host"], event.data["port"])
-            if event.kind == "area" and snapshotter:
+            if event.kind in ("level_up", "death") and snapshotter:
+                snapshotter.current = event.data["character"]
+            if event.kind == "area" and snapshotter and snapshotter.current:
                 snapshotter.request()
             if event.kind == "death" and clipper:
                 clipper.on_death(event.ts)
@@ -114,6 +117,14 @@ def _watch(log_path, db, account, sessid, clips, obs, obs_password, monitor=None
 
 _running: dict = {}
 HEADLESS = False  # set by __main__ in a windowed build
+
+
+def _last_character(store: Store) -> str | None:
+    """Most recent character seen in the log, to snapshot the right one before the first level up."""
+    for e in reversed(store.events()):
+        if e.kind in ("level_up", "death"):
+            return e.data["character"]
+    return None
 
 
 def _log_to_file(path: Path) -> None:
