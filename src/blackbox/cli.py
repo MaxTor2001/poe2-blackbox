@@ -30,9 +30,9 @@ def _db(db: Path | None) -> Path:
 
 def backfill(store: Store, path: Path) -> int:
     """Parse the whole existing log into an empty database, so past deaths show up on first start."""
-    if store.events():
+    if store.count():
         return 0
-    return sum(1 for line in read_all(path) if (e := parse_line(line)) and store.add(e))
+    return store.add_many(e for e in map(parse_line, read_all(path)) if e)
 
 
 def _resolve_log(log_path: Path | None) -> Path:
@@ -53,11 +53,7 @@ def cli():
 def import_log(log_path, db):
     """Parse an entire Client.txt into the database."""
     store = Store(_db(db))
-    added = 0
-    for line in read_all(_resolve_log(log_path)):
-        event = parse_line(line)
-        if event and store.add(event):
-            added += 1
+    added = store.add_many(e for e in map(parse_line, read_all(_resolve_log(log_path))) if e)
     click.echo(f"imported {added} new events")
 
 
@@ -221,7 +217,16 @@ def run(log_path, db, account, sessid, port, no_clips, monitor, clip_seconds):
     threading.Thread(target=_serve, args=(db, port), daemon=True).start()
     click.echo(f"death journal at {url}")
     webbrowser.open(url)
-    worker = threading.Thread(target=_watch, args=(log_path, db, account, sessid, not no_clips, False, None, monitor, clip_seconds), daemon=True)
+    def guarded_watch():
+        try:
+            _watch(log_path, db, account, sessid, not no_clips, False, None, monitor, clip_seconds)
+        except BaseException:
+            import traceback
+
+            click.echo("watch stopped with an error:\n" + traceback.format_exc())
+            raise
+
+    worker = threading.Thread(target=guarded_watch, daemon=True)
     worker.start()
 
     def stop():

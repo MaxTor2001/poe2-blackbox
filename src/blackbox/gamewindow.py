@@ -2,7 +2,8 @@
 
 import sys
 
-TITLE = "path of exile"
+TITLE = "path of exile 2"  # exact window title of the game
+PROCESS_PREFIX = "pathofexile"  # PathOfExile.exe / PathOfExileSteam.exe
 
 
 def visible_windows() -> list[tuple[int, str]]:
@@ -27,8 +28,37 @@ def visible_windows() -> list[tuple[int, str]]:
     return out
 
 
+def process_name(hwnd: int) -> str:
+    """Executable name of the window's process, lowercase; empty if unknown."""
+    import ctypes
+    from ctypes import wintypes
+
+    user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    handle = kernel32.OpenProcess(0x1000, False, pid.value)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return ""
+    try:
+        buf = ctypes.create_unicode_buffer(1024)
+        size = wintypes.DWORD(1024)
+        if not kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+            return ""
+        return buf.value.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    finally:
+        kernel32.CloseHandle(handle)
+
+
 def game_windows() -> list[int]:
-    return [hwnd for hwnd, title in visible_windows() if TITLE in title.lower()]
+    """Windows titled exactly like the game and owned by the game's process (a browser tab is not the game)."""
+    out = []
+    for hwnd, title in visible_windows():
+        if title.lower() != TITLE:
+            continue
+        name = process_name(hwnd)
+        if not name or name.startswith(PROCESS_PREFIX):
+            out.append(hwnd)
+    return out
 
 
 def game_running() -> bool | None:

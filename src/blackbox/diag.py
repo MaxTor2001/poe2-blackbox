@@ -23,9 +23,12 @@ def report(log_path: Path | None, grep: str | None = None, clips_dir: Path | Non
 
     idx = game_monitor_index()
     lines.append(f"game window: {'display ' + str(idx) if idx is not None else 'not found (is the game running?)'}")
-    exile = [t for _, t in visible_windows() if "exile" in t.lower()]
+    from blackbox.gamewindow import game_windows, process_name
+
+    exile = [f"{t} [{process_name(h) or '?'}]" for h, t in visible_windows() if "exile" in t.lower()]
     if exile:
         lines.append("windows mentioning exile: " + "; ".join(exile))
+    lines.append(f"game windows matched: {len(game_windows())}")
     if clips_dir:
         lines += _clips_lines(clips_dir)
     path = log_path or default_log_path()

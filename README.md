@@ -34,7 +34,7 @@ uv run pytest
   `--no-clips` disables recording. Streamers who already run OBS with a replay buffer can pass
   `--obs` to use it instead (enable obs-websocket; `--obs-password` / `OBS_PASSWORD` if it has one).
 
-Database, clips and `blackbox.log` live in the per-user data folder (`%APPDATA%\\poe2-blackbox` on Windows,
+Database, clips and `blackbox.log` live in the per-user data folder (`%LOCALAPPDATA%\\poe2-blackbox` on Windows,
 `~/.local/share/poe2-blackbox` on Linux), so updating the program keeps your history. On first start the
 existing log is imported, so past deaths appear right away.
 

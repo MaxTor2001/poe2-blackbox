@@ -50,6 +50,21 @@ class Store:
         self.conn.commit()
         return cur.rowcount == 1
 
+    def add_many(self, events) -> int:
+        """Insert many events in one transaction; returns how many were new."""
+        added = 0
+        with self.conn:
+            for event in events:
+                cur = self.conn.execute(
+                    "INSERT OR IGNORE INTO events (ts, kind, data) VALUES (?, ?, ?)",
+                    (event.ts.isoformat(), event.kind, json.dumps(event.data, sort_keys=True)),
+                )
+                added += cur.rowcount
+        return added
+
+    def count(self) -> int:
+        return self.conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+
     def events(self, kind: str | None = None) -> list[Event]:
         sql = "SELECT ts, kind, data FROM events"
         args: tuple = ()
