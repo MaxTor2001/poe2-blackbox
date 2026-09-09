@@ -9,6 +9,7 @@ import click
 from blackbox.capture import Recorder
 from blackbox.character import Snapshotter
 from blackbox.diag import report
+from blackbox.gamewindow import game_monitor_index
 from blackbox.journal import deaths as build_deaths
 from blackbox.obs import Clipper, Obs
 from blackbox.log_lines import parse_line
@@ -56,13 +57,14 @@ def import_log(log_path, db):
 @click.option("--clips/--no-clips", default=True, show_default=True, help="Record the screen and save a clip on death")
 @click.option("--obs", is_flag=True, help="Use OBS replay buffer instead of the built-in recorder")
 @click.option("--obs-password", envvar="OBS_PASSWORD", help="obs-websocket password, if set")
-def watch(log_path, db, account, sessid, clips, obs, obs_password):
+@click.option("--monitor", type=int, default=None, help="Display index to record (default: the one with the game window)")
+def watch(log_path, db, account, sessid, clips, obs, obs_password, monitor):
     """Follow Client.txt, record events, probe ping and snapshot gear on zone entry."""
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    _watch(log_path, db, account, sessid, clips, obs, obs_password)
+    _watch(log_path, db, account, sessid, clips, obs, obs_password, monitor)
 
 
-def _watch(log_path, db, account, sessid, clips, obs, obs_password):
+def _watch(log_path, db, account, sessid, clips, obs, obs_password, monitor=None):
     store = Store(db)
     path = _resolve_log(log_path)
     _log_to_file(db.resolve().parent / "blackbox.log")
@@ -76,7 +78,7 @@ def _watch(log_path, db, account, sessid, clips, obs, obs_password):
         snapshotter.start()
     clipper = None
     if clips:
-        clipper = _connect_obs(db, obs_password) if obs else _start_recorder(db)
+        clipper = _connect_obs(db, obs_password) if obs else _start_recorder(db, monitor)
     click.echo(f"watching {path}")
     _running["clipper"] = clipper
     try:
@@ -120,8 +122,11 @@ def _log_to_file(path: Path) -> None:
     builtins.print = lambda *a, **k: echo(" ".join(str(x) for x in a))
 
 
-def _start_recorder(db) -> Clipper | None:
-    recorder = Recorder(db.resolve().parent / "clips")
+def _start_recorder(db, monitor) -> Clipper | None:
+    if monitor is None:
+        monitor = game_monitor_index()
+        click.echo(f"game window found on display {monitor}" if monitor is not None else "game window not found, recording display 0")
+    recorder = Recorder(db.resolve().parent / "clips", monitor=monitor)
     try:
         recorder.start()
     except (OSError, RuntimeError) as err:
@@ -176,7 +181,8 @@ def _serve(db, port):
 @click.option("--sessid", envvar="POESESSID", help="POESESSID cookie for a private profile")
 @click.option("--port", default=8765, show_default=True)
 @click.option("--no-clips", is_flag=True, help="Do not record the screen")
-def run(log_path, db, account, sessid, port, no_clips):
+@click.option("--monitor", type=int, default=None, help="Display index to record (default: the one with the game window)")
+def run(log_path, db, account, sessid, port, no_clips, monitor):
     """Watch the log and serve the journal in one process; opens the journal in the browser."""
     import threading
     import webbrowser
@@ -188,7 +194,7 @@ def run(log_path, db, account, sessid, port, no_clips):
     threading.Thread(target=_serve, args=(db, port), daemon=True).start()
     click.echo(f"death journal at {url}")
     webbrowser.open(url)
-    worker = threading.Thread(target=_watch, args=(log_path, db, account, sessid, not no_clips, False, None), daemon=True)
+    worker = threading.Thread(target=_watch, args=(log_path, db, account, sessid, not no_clips, False, None, monitor), daemon=True)
     worker.start()
 
     def stop():

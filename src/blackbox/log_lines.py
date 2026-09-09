@@ -8,9 +8,9 @@ TIMESTAMP = r"^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})"
 HEADER = r".*?\[(?:INFO|DEBUG) Client \d+\] "
 
 PATTERNS = {
-    "death": re.compile(TIMESTAMP + HEADER + r": (?P<character>.+?) has been slain\.$"),
+    "death": re.compile(TIMESTAMP + HEADER + r": (?P<character>.+?) (?:has been slain|была? повержена?)\.$"),
     "level_up": re.compile(
-        TIMESTAMP + HEADER + r": (?P<character>.+?) \((?P<klass>[^)]+)\) is now level (?P<level>\d+)$"
+        TIMESTAMP + HEADER + r": (?P<character>.+?) \((?P<klass>[^)]+)\) (?:is now level (?P<level>\d+)|достигает (?P<level_ru>\d+) уровня)$"
     ),
     "area": re.compile(
         TIMESTAMP + HEADER + r'Generating level (?P<level>\d+) area "(?P<area_id>[^"]+)" with seed (?P<seed>\d+)$'
@@ -54,5 +54,5 @@ def _build(kind: str, m: re.Match) -> Event | None:
     if kind == "connect":
         return Event(ts, kind, {"host": g["host"], "port": int(g["port"])})
     if kind == "level_up":
-        return Event(ts, kind, {"character": g["character"], "class": g["klass"], "level": int(g["level"])})
+        return Event(ts, kind, {"character": g["character"], "class": g["klass"], "level": int(g["level"] or g["level_ru"])})
     return Event(ts, kind, {"character": g["character"]})

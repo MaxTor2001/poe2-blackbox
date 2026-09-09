@@ -7,7 +7,7 @@ FIXTURE = Path(__file__).parent / "fixtures/client_sample.txt"
 
 def test_report_counts_and_unparsed_shapes():
     text = report(FIXTURE)
-    assert "death=1" in text and "zone=2" in text
+    assert "death=2" in text and "zone=2" in text
     assert "N Items identified" in text
     unparsed = text.split("unparsed shapes")[1]
     assert "@From Trader" in unparsed

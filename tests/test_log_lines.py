@@ -11,11 +11,11 @@ def parsed():
 
 
 def test_only_known_lines_produce_events():
-    assert [e.kind for e in parsed()] == ["area", "connect", "zone", "area", "zone", "level_up", "death"]
+    assert [e.kind for e in parsed()] == ["area", "connect", "zone", "area", "zone", "level_up", "death", "level_up", "death"]
 
 
 def test_death():
-    death = parsed()[-1]
+    death = parsed()[6]
     assert death.ts == datetime(2025, 1, 16, 21, 56, 41)
     assert death.data == {"character": "Zahrek"}
 
@@ -45,3 +45,10 @@ def test_connect():
 def test_trailing_whitespace_is_tolerated():
     line = "2025/01/16 21:04:52 1 a [INFO Client 1] Connecting to instance server at 101.100.146.42:6112 \r\n"
     assert parse_line(line).kind == "connect"
+
+
+def test_russian_client_lines():
+    level, death = parsed()[-2], parsed()[-1]
+    assert level.data == {"character": "ХК_СтоВыстреловВсекунду", "class": "Охотник на ведьм", "level": 12}
+    assert death.data == {"character": "Kelthuzard_Lich"}
+    assert parse_line("2025/08/30 02:52:00 1 a [INFO Client 1] : Ведьма была повержена.").data == {"character": "Ведьма"}
