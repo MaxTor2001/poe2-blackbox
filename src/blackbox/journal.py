@@ -36,9 +36,10 @@ class Death:
     ping: PingSummary | None = None
     gear: Gear | None = None
     waystone: dict | None = None
+    clip: str | None = None
 
 
-def deaths(events: list[Event], pings=(), snapshots=()) -> list[Death]:
+def deaths(events: list[Event], pings=(), snapshots=(), clips: dict | None = None) -> list[Death]:
     """Replay events in order and attach the current context to every death."""
     zone = area_level = zone_since = None
     last_waystone = zone_waystone = None
@@ -60,7 +61,8 @@ def deaths(events: list[Event], pings=(), snapshots=()) -> list[Death]:
             in_zone = e.ts - zone_since if zone_since else None
             ping = summarize_pings(pings, e.ts)
             gear = latest_gear(snapshots, e.data["character"], e.ts)
-            result.append(Death(e.ts, e.data["character"], klass, level, zone, area_level, in_zone, ping, gear, zone_waystone))
+            clip = (clips or {}).get(e.ts)
+            result.append(Death(e.ts, e.data["character"], klass, level, zone, area_level, in_zone, ping, gear, zone_waystone, clip))
     return result
 
 

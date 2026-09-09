@@ -6,6 +6,7 @@ import click
 
 from blackbox.character import Snapshotter
 from blackbox.journal import deaths as build_deaths
+from blackbox.obs import Clipper, Obs
 from blackbox.log_lines import parse_line
 from blackbox.ping import Pinger
 from blackbox.store import Store
@@ -47,7 +48,9 @@ def import_log(log_path, db):
 @DB_OPTION
 @click.option("--account", help="pathofexile.com account name; enables gear snapshots on zone entry")
 @click.option("--sessid", envvar="POESESSID", help="POESESSID cookie for a private profile")
-def watch(log_path, db, account, sessid):
+@click.option("--obs/--no-obs", default=True, show_default=True, help="Save an OBS replay clip on death")
+@click.option("--obs-password", envvar="OBS_PASSWORD", help="obs-websocket password, if set")
+def watch(log_path, db, account, sessid, obs, obs_password):
     """Follow Client.txt, record events, probe ping and snapshot gear on zone entry."""
     store = Store(db)
     path = _resolve_log(log_path)
@@ -58,6 +61,7 @@ def watch(log_path, db, account, sessid):
     if account:
         snapshotter = Snapshotter(db, account, sessid)
         snapshotter.start()
+    clipper = _connect_obs(db, obs_password) if obs else None
     click.echo(f"watching {path}")
     for line in follow(path):
         event = parse_line(line)
@@ -67,8 +71,21 @@ def watch(log_path, db, account, sessid):
             pinger.target = (event.data["host"], event.data["port"])
         if event.kind == "area" and snapshotter:
             snapshotter.request()
+        if event.kind == "death" and clipper:
+            clipper.on_death(event.ts)
         if store.add(event):
             click.echo(f"{event.ts:%Y-%m-%d %H:%M:%S}  {event.kind:9} {event.data}")
+
+
+def _connect_obs(db, password) -> Clipper | None:
+    client = Obs(password=password)
+    try:
+        client.ensure_replay_buffer()
+    except Exception as err:
+        click.echo(f"OBS not available, clips disabled ({err.__class__.__name__})")
+        return None
+    click.echo("OBS replay buffer running, clips enabled")
+    return Clipper(db, client)
 
 
 @cli.command()
@@ -76,7 +93,7 @@ def watch(log_path, db, account, sessid):
 def deaths(db):
     """List recorded deaths with the zone each happened in."""
     store = Store(db)
-    for d in build_deaths(store.events(), store.pings(), store.snapshots()):
+    for d in build_deaths(store.events(), store.pings(), store.snapshots(), store.clips()):
         tier = f" T{d.waystone['tier']}" if d.waystone else ""
         click.echo(f"{d.ts:%Y-%m-%d %H:%M:%S}  {d.character} lvl {d.char_level}  died in {d.zone}{tier} (area level {d.area_level})")
 

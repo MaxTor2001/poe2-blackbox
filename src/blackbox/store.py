@@ -21,6 +21,11 @@ CREATE TABLE IF NOT EXISTS pings (
     host TEXT NOT NULL,
     rtt_ms REAL
 );
+CREATE TABLE IF NOT EXISTS clips (
+    id INTEGER PRIMARY KEY,
+    death_ts TEXT NOT NULL,
+    path TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS snapshots (
     id INTEGER PRIMARY KEY,
     ts TEXT NOT NULL,
@@ -72,3 +77,11 @@ class Store:
     def snapshots(self) -> list[tuple[datetime, str, dict]]:
         rows = self.conn.execute("SELECT ts, character, data FROM snapshots ORDER BY ts, id").fetchall()
         return [(datetime.fromisoformat(ts), c, json.loads(d)) for ts, c, d in rows]
+
+    def add_clip(self, death_ts: datetime, path: str) -> None:
+        self.conn.execute("INSERT INTO clips (death_ts, path) VALUES (?, ?)", (death_ts.isoformat(), path))
+        self.conn.commit()
+
+    def clips(self) -> dict[datetime, str]:
+        rows = self.conn.execute("SELECT death_ts, path FROM clips ORDER BY id").fetchall()
+        return {datetime.fromisoformat(ts): p for ts, p in rows}

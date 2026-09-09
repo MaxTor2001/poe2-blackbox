@@ -13,6 +13,7 @@
   th { color: #9c8f7a; font-weight: 500; }
   details ul { margin: .25rem 0 0; padding-left: 1rem; font-size: 13px; }
   summary { cursor: pointer; }
+  a { color: #e0a458; }
   .bad { color: #d55; }
   .muted { color: #6e6456; }
   .empty { color: #9c8f7a; padding: 2rem 0; }
@@ -24,7 +25,7 @@
 <p class="empty">No deaths recorded yet. Run <code>blackbox watch</code> alongside the game.</p>
 {% else %}
 <table>
-  <tr><th>When</th><th>Character</th><th>Level</th><th>Zone</th><th>Area lvl</th><th>Time in zone</th><th>Waystone</th><th>Ping, last minute</th><th>Gear</th></tr>
+  <tr><th>When</th><th>Character</th><th>Level</th><th>Zone</th><th>Area lvl</th><th>Time in zone</th><th>Waystone</th><th>Ping, last minute</th><th>Gear</th><th>Clip</th></tr>
   {% for d in deaths %}
   <tr>
     <td>{{ d.ts.strftime('%Y-%m-%d %H:%M:%S') }}</td>
@@ -38,6 +39,7 @@
     <td>{% if d.ping %}avg {{ d.ping.avg_ms | round | int }} ms, max {{ d.ping.max_ms | round | int }}{% if d.ping.lost %}, <span class="bad">{{ d.ping.lost }} lost</span>{% endif %}{% else %}<span class="muted">no data</span>{% endif %}</td>
     <td>{% if d.gear %}<details><summary>{{ d.gear.items | length }} items, {{ ((d.ts - d.gear.taken_at).total_seconds() // 60) | int }} min before</summary>
       <ul>{% for slot, name in d.gear.items %}<li><span class="muted">{{ slot }}</span> {{ name }}</li>{% endfor %}</ul></details>{% else %}<span class="muted">no snapshot</span>{% endif %}</td>
+    <td>{% if d.clip %}<a href="/clip/{{ d.ts.isoformat() }}">&#9654; watch</a>{% else %}<span class="muted">none</span>{% endif %}</td>
   </tr>
   {% endfor %}
 </table>
