@@ -1,0 +1,38 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - name: Fetch ffmpeg
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg
+          $bin = Get-ChildItem ffmpeg -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+          New-Item -ItemType Directory dist -Force | Out-Null
+          Copy-Item $bin.FullName, (Join-Path $bin.DirectoryName ffprobe.exe) dist/
+      - name: Build exe
+        run: uv run pyinstaller --noconfirm --onefile --name blackbox --add-data "src/blackbox/templates;blackbox/templates" src/blackbox/__main__.py
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/blackbox.exe, dist/ffmpeg.exe, dist/ffprobe.exe, README.md -DestinationPath poe2-blackbox-windows.zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: poe2-blackbox-windows.zip
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+      - run: uv run pyinstaller --noconfirm --onefile --name blackbox --add-data "src/blackbox/templates:blackbox/templates" src/blackbox/__main__.py
+      - run: tar -C dist -czf poe2-blackbox-linux.tar.gz blackbox
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: poe2-blackbox-linux.tar.gz

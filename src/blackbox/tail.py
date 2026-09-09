@@ -33,13 +33,3 @@ def _follow_from(path: Path, position: int, poll_seconds: float) -> Iterator[str
         buffer += chunk.decode("utf-8", errors="replace")
         *complete, buffer = buffer.split("\n")
         yield from complete
-
-
-def default_log_path() -> Path | None:
-    """Guess Client.txt location for a Steam install on Linux."""
-    home = Path.home()
-    candidates = [
-        home / ".steam/steam/steamapps/common/Path of Exile 2/logs/Client.txt",
-        home / ".local/share/Steam/steamapps/common/Path of Exile 2/logs/Client.txt",
-    ]
-    return next((p for p in candidates if p.exists()), None)

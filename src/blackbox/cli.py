@@ -13,7 +13,8 @@ from blackbox.obs import Clipper, Obs
 from blackbox.log_lines import parse_line
 from blackbox.ping import Pinger
 from blackbox.store import Store
-from blackbox.tail import default_log_path, follow, read_all
+from blackbox.paths import default_log_path
+from blackbox.tail import follow, read_all
 from blackbox.waystone import ClipboardWatcher
 
 DB_OPTION = click.option("--db", type=Path, default=Path("blackbox.sqlite"), show_default=True)
@@ -56,6 +57,10 @@ def import_log(log_path, db):
 @click.option("--obs-password", envvar="OBS_PASSWORD", help="obs-websocket password, if set")
 def watch(log_path, db, account, sessid, clips, obs, obs_password):
     """Follow Client.txt, record events, probe ping and snapshot gear on zone entry."""
+    _watch(log_path, db, account, sessid, clips, obs, obs_password)
+
+
+def _watch(log_path, db, account, sessid, clips, obs, obs_password):
     store = Store(db)
     path = _resolve_log(log_path)
     pinger = Pinger(db)
@@ -125,9 +130,31 @@ def deaths(db):
 @click.option("--port", default=8765, show_default=True)
 def serve(db, port):
     """Serve the death journal page on localhost."""
+    click.echo(f"death journal at http://127.0.0.1:{port}/")
+    _serve(db, port)
+
+
+def _serve(db, port):
     import uvicorn
 
     from blackbox.web import create_app
 
-    click.echo(f"death journal at http://127.0.0.1:{port}/")
     uvicorn.run(create_app(db), host="127.0.0.1", port=port, log_level="warning")
+
+
+@cli.command()
+@LOG_OPTION
+@DB_OPTION
+@click.option("--account", help="pathofexile.com account name; enables gear snapshots on zone entry")
+@click.option("--sessid", envvar="POESESSID", help="POESESSID cookie for a private profile")
+@click.option("--port", default=8765, show_default=True)
+@click.option("--no-clips", is_flag=True, help="Do not record the screen")
+def run(log_path, db, account, sessid, port, no_clips):
+    """Watch the log and serve the journal in one process; opens the journal in the browser."""
+    import threading
+    import webbrowser
+
+    threading.Thread(target=_serve, args=(db, port), daemon=True).start()
+    click.echo(f"death journal at http://127.0.0.1:{port}/")
+    webbrowser.open(f"http://127.0.0.1:{port}/")
+    _watch(log_path, db, account, sessid, not no_clips, False, None)

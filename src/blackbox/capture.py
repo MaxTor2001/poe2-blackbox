@@ -7,6 +7,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from blackbox.paths import ffmpeg
+
 SEGMENT_SECONDS = 10
 KEEP_SEGMENTS = 8  # 80 s of history
 CLIP_SECONDS = 60
@@ -23,7 +25,7 @@ def screen_input() -> list[str]:
 def pick_encoder() -> list[str]:
     """First encoder that can actually encode a frame on this machine."""
     for name, opts in ENCODERS:
-        probe = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=256x256:rate=1", "-frames:v", "1", "-pix_fmt", "yuv420p", "-c:v", name, *opts, "-f", "null", "-"]
+        probe = [ffmpeg(), "-v", "error", "-f", "lavfi", "-i", "testsrc=size=256x256:rate=1", "-frames:v", "1", "-pix_fmt", "yuv420p", "-c:v", name, *opts, "-f", "null", "-"]
         if subprocess.run(probe, capture_output=True).returncode == 0:
             return ["-c:v", name, *opts]
     raise RuntimeError("no working h264 encoder in ffmpeg")
@@ -43,7 +45,7 @@ class Recorder:
         for old in self.work_dir.glob("seg*.ts"):
             old.unlink()
         cmd = [
-            "ffmpeg", "-v", "error", "-y", *self.input_args,
+            ffmpeg(), "-v", "error", "-y", *self.input_args,
             "-vf", "scale=-2:'min(1080,ih)'", "-pix_fmt", "yuv420p", *pick_encoder(), "-g", "30",
             "-f", "segment", "-segment_time", str(self.segment_seconds), "-segment_wrap", str(KEEP_SEGMENTS),
             "-reset_timestamps", "1", str(self.work_dir / "seg%02d.ts"),
@@ -63,5 +65,5 @@ class Recorder:
             raise RuntimeError("no recorded segments yet")
         out = self.work_dir / f"death-{datetime.now():%Y-%m-%d_%H-%M-%S}.mp4"
         concat = "concat:" + "|".join(str(p) for p in recent)
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", concat, "-c", "copy", "-movflags", "+faststart", str(out)], check=True)
+        subprocess.run([ffmpeg(), "-v", "error", "-y", "-i", concat, "-c", "copy", "-movflags", "+faststart", str(out)], check=True)
         return str(out)

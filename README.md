@@ -1,5 +1,7 @@
 # poe2-blackbox
 
+[Русская версия](README.ru.md)
+
 Hardcore black box for Path of Exile 2. Runs on the player's machine, reads `Client.txt`, and records
 every death with context: zone, area level, character level, time in zone, waystone mods, ping to the
 instance server, gear snapshot, and a video clip of the last minute.
