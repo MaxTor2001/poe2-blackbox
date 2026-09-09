@@ -31,7 +31,7 @@ def data_dir() -> Path:
     from platformdirs import user_data_dir
 
     path = Path(user_data_dir("poe2-blackbox", appauthor=False))
-    path.mkdir(parents=True, exist_ok=True)
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
     return path
 
 

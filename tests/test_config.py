@@ -13,3 +13,13 @@ def test_name_forms():
     assert name_forms("Max#7804") == ["Max#7804", "Max-7804"]
     assert name_forms("Max-7804") == ["Max-7804", "Max#7804"]
     assert name_forms("Max") == ["Max"]
+
+
+def test_config_file_is_owner_only(tmp_path, monkeypatch):
+    import os
+    import sys
+
+    monkeypatch.setattr(config, "data_dir", lambda: tmp_path)
+    config.save(sessid="secret")
+    if sys.platform != "win32":
+        assert os.stat(config.config_path()).st_mode & 0o777 == 0o600

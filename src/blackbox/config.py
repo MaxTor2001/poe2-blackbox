@@ -1,6 +1,7 @@
 """Small persisted settings (account name, session cookie) in the user data folder."""
 
 import json
+import os
 from pathlib import Path
 
 from blackbox.paths import data_dir
@@ -19,5 +20,8 @@ def save(**values) -> dict:
     """Merge non-empty values into the config file and return the result."""
     current = load()
     current.update({k: v for k, v in values.items() if v})
-    config_path().write_text(json.dumps(current, indent=2), encoding="utf-8")
+    path = config_path()
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # holds a session cookie: owner-only
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(current, f, indent=2)
     return current
