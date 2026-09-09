@@ -66,7 +66,8 @@ def pick_pipeline(monitor: int | None = None, rect=None) -> Pipeline:
         result = subprocess.run(probe, capture_output=True, text=True, errors="replace", timeout=30, **NO_WINDOW)
         if result.returncode == 0:
             return pipe
-        PROBE_FAILURES[pipe.name] = " | ".join(result.stderr.strip().splitlines()[-4:]) or f"exit {result.returncode}"
+        err_lines = result.stderr.strip().splitlines()
+        PROBE_FAILURES[pipe.name] = " | ".join(err_lines[:2] + (["..."] if len(err_lines) > 4 else []) + err_lines[-2:]) or f"exit {result.returncode}"
     raise RuntimeError("no working screen capture: " + "; ".join(f"{k}: {v}" for k, v in PROBE_FAILURES.items()))
 
 
@@ -98,6 +99,16 @@ class Recorder:
         for old in self.work_dir.glob("seg*.ts"):
             old.unlink()
         rect = self.window_rect()
+        print(f"window rect: {rect}" if rect else "window rect: none, recording the whole display")
+        try:
+            self._launch(rect)
+        except RuntimeError as err:
+            if rect is None:
+                raise
+            print(f"capture with crop failed ({err}); recording without crop")
+            self._launch(None)
+
+    def _launch(self, rect) -> None:
         if self.pipeline is None:
             self.pipeline = pick_pipeline(self.monitor, rect)
         else:  # keep the proven pipeline, refresh the crop for the current window position
@@ -108,6 +119,16 @@ class Recorder:
             "-reset_timestamps", "1", str(self.work_dir / "seg%02d.ts"),
         ]
         self.process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stderr=(self.work_dir / "ffmpeg.log").open("ab"), **NO_WINDOW)
+        time.sleep(1.5)
+        if self.process.poll() is not None:
+            self.process = None
+            raise RuntimeError(f"ffmpeg exited immediately with code {self.process_exit_code}")
+
+    @property
+    def process_exit_code(self):
+        log = self.work_dir / "ffmpeg.log"
+        tail = log.read_text(errors="replace").strip().splitlines()[-1:] if log.exists() else []
+        return tail[0] if tail else "?"
 
     def stop(self) -> None:
         if self.running:

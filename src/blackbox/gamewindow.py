@@ -99,6 +99,33 @@ def game_window_rect() -> tuple[int, int, int, int] | None:
         return None
 
 
+def make_dpi_aware() -> None:
+    """Ask Windows for physical pixel coordinates; without this a scaled desktop reports shrunken rects."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+
+    try:
+        ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))  # PER_MONITOR_AWARE_V2
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+
+def clamp_rect(rect, monitor_w: int, monitor_h: int):
+    """Clip the window rect to the monitor; None when it is invalid or covers (almost) the whole screen."""
+    x, y, w, h = rect
+    x0, y0 = max(x, 0), max(y, 0)
+    x1, y1 = min(x + w, monitor_w), min(y + h, monitor_h)
+    if x1 - x0 < 64 or y1 - y0 < 64:
+        return None
+    if (x1 - x0) * (y1 - y0) >= 0.95 * monitor_w * monitor_h:
+        return None
+    return x0, y0, x1 - x0, y1 - y0
+
+
 def _game_window_rect():
     found = game_windows()
     if not found:
@@ -106,6 +133,7 @@ def _game_window_rect():
     import ctypes
     from ctypes import wintypes
 
+    make_dpi_aware()
     user32 = ctypes.windll.user32
     user32.MonitorFromWindow.restype = ctypes.c_void_p
     user32.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
@@ -123,6 +151,7 @@ def _game_window_rect():
     user32.GetMonitorInfoW(user32.MonitorFromWindow(hwnd, 2), ctypes.byref(info))
     x, y = origin.x - info.rcMonitor.left, origin.y - info.rcMonitor.top
     w, h = rect.right - rect.left, rect.bottom - rect.top
-    if w < 64 or h < 64:
+    mon_w, mon_h = info.rcMonitor.right - info.rcMonitor.left, info.rcMonitor.bottom - info.rcMonitor.top
+    if mon_w <= 0 or mon_h <= 0:
         return None
-    return x, y, w, h
+    return clamp_rect((x, y, w, h), mon_w, mon_h)
