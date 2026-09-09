@@ -18,8 +18,8 @@ CLIP_DELAY = 4.0  # seconds after death, so the death itself is in the clip
 class Obs:
     """Minimal obs-websocket client: identify, then send requests."""
 
-    def __init__(self, url: str = "ws://127.0.0.1:4455", password: str | None = None):
-        self.url, self.password = url, password
+    def __init__(self, url: str = "ws://127.0.0.1:4455", password: str | None = None, settle: float = 1.5):
+        self.url, self.password, self.settle = url, password, settle
 
     def request(self, request_type: str, data: dict | None = None) -> dict:
         with connect(self.url, proxy=None) as ws:  # OBS is local, never go through a proxy
@@ -46,7 +46,7 @@ class Obs:
 
     def save_replay(self) -> str:
         self.request("SaveReplayBuffer")
-        time.sleep(1.5)
+        time.sleep(self.settle)  # OBS needs a moment to write the file
         return self.request("GetLastReplayBufferReplay")["savedReplayPath"]
 
 

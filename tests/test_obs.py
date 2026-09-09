@@ -39,13 +39,10 @@ def test_ensure_replay_buffer_starts_when_inactive():
     assert fake.calls == ["GetReplayBufferStatus", "StartReplayBuffer"]
 
 
-def test_clipper_saves_after_death(tmp_path, monkeypatch):
-    import blackbox.obs as obs_module
-
-    monkeypatch.setattr(obs_module.time, "sleep", lambda s: None)
+def test_clipper_saves_after_death(tmp_path):
     fake = FakeObs(active=True)
     ts = datetime(2026, 9, 9, 14, 5, 10)
-    Clipper(tmp_path / "t.sqlite", Obs(fake.url), delay=0).on_death(ts)
+    Clipper(tmp_path / "t.sqlite", Obs(fake.url, settle=0), delay=0).on_death(ts)
     time.sleep(0.3)
     assert fake.calls == ["SaveReplayBuffer", "GetLastReplayBufferReplay"]
     assert Store(tmp_path / "t.sqlite").clips() == {ts: "/tmp/Replay.mkv"}
