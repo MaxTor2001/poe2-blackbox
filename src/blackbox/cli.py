@@ -10,6 +10,7 @@ from blackbox.log_lines import parse_line
 from blackbox.ping import Pinger
 from blackbox.store import Store
 from blackbox.tail import default_log_path, follow, read_all
+from blackbox.waystone import ClipboardWatcher
 
 DB_OPTION = click.option("--db", type=Path, default=Path("blackbox.sqlite"), show_default=True)
 LOG_OPTION = click.option("--log", "log_path", type=Path, default=None, help="Path to Client.txt")
@@ -52,6 +53,7 @@ def watch(log_path, db, account, sessid):
     path = _resolve_log(log_path)
     pinger = Pinger(db)
     pinger.start()
+    ClipboardWatcher(db).start()
     snapshotter = None
     if account:
         snapshotter = Snapshotter(db, account, sessid)
@@ -75,7 +77,8 @@ def deaths(db):
     """List recorded deaths with the zone each happened in."""
     store = Store(db)
     for d in build_deaths(store.events(), store.pings(), store.snapshots()):
-        click.echo(f"{d.ts:%Y-%m-%d %H:%M:%S}  {d.character} lvl {d.char_level}  died in {d.zone} (area level {d.area_level})")
+        tier = f" T{d.waystone['tier']}" if d.waystone else ""
+        click.echo(f"{d.ts:%Y-%m-%d %H:%M:%S}  {d.character} lvl {d.char_level}  died in {d.zone}{tier} (area level {d.area_level})")
 
 
 @cli.command()

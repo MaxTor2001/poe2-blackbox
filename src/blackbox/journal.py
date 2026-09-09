@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from blackbox.log_lines import Event
 
 PING_WINDOW = timedelta(seconds=60)
+WAYSTONE_WINDOW = timedelta(minutes=15)
 
 
 @dataclass
@@ -34,16 +35,22 @@ class Death:
     time_in_zone: timedelta | None
     ping: PingSummary | None = None
     gear: Gear | None = None
+    waystone: dict | None = None
 
 
 def deaths(events: list[Event], pings=(), snapshots=()) -> list[Death]:
     """Replay events in order and attach the current context to every death."""
     zone = area_level = zone_since = None
+    last_waystone = zone_waystone = None
     levels: dict[str, tuple[str, int]] = {}
     result = []
     for e in events:
-        if e.kind == "zone":
+        if e.kind == "waystone":
+            last_waystone = e
+        elif e.kind == "zone":
             zone, zone_since = e.data["name"], e.ts
+            recent = last_waystone and e.ts - last_waystone.ts <= WAYSTONE_WINDOW
+            zone_waystone = last_waystone.data if recent else None
         elif e.kind == "area":
             area_level = e.data["level"]
         elif e.kind == "level_up":
@@ -53,7 +60,7 @@ def deaths(events: list[Event], pings=(), snapshots=()) -> list[Death]:
             in_zone = e.ts - zone_since if zone_since else None
             ping = summarize_pings(pings, e.ts)
             gear = latest_gear(snapshots, e.data["character"], e.ts)
-            result.append(Death(e.ts, e.data["character"], klass, level, zone, area_level, in_zone, ping, gear))
+            result.append(Death(e.ts, e.data["character"], klass, level, zone, area_level, in_zone, ping, gear, zone_waystone))
     return result
 
 
