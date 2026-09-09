@@ -23,7 +23,7 @@ def screen_input() -> list[str]:
 def pick_encoder() -> list[str]:
     """First encoder that can actually encode a frame on this machine."""
     for name, opts in ENCODERS:
-        probe = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=64x64:rate=1", "-frames:v", "1", "-c:v", name, *opts, "-f", "null", "-"]
+        probe = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=64x64:rate=1", "-frames:v", "1", "-pix_fmt", "yuv420p", "-c:v", name, *opts, "-f", "null", "-"]
         if subprocess.run(probe, capture_output=True).returncode == 0:
             return ["-c:v", name, *opts]
     raise RuntimeError("no working h264 encoder in ffmpeg")
