@@ -41,13 +41,28 @@ def test_latest_gear_picks_closest_within_window():
     assert latest_gear(far, "Zahrek", t) is None  # nothing inside the window
 
 
-def test_pick_prefers_named_character():
-    from blackbox.character import _pick
+def test_match_requires_the_named_character():
+    from blackbox.character import _match
 
     chars = [{"name": "VendigosSSS", "level": 1}, {"name": "QuicklyDruid", "level": 5, "lastActive": True}]
-    assert _pick(chars, "QuicklyDruid")["name"] == "QuicklyDruid"
-    assert _pick([{"name": "A"}, {"name": "B"}], "Missing")["name"] == "B"  # fall back to last
-    assert _pick(chars, None)["name"] == "QuicklyDruid"  # lastActive when no name given
+    assert _match(chars, "QuicklyDruid")["name"] == "QuicklyDruid"
+    assert _match(chars, "Missing") is None  # no wrong-character fallback
+    assert _match(chars, None)["name"] == "QuicklyDruid"  # lastActive when no name given
+
+
+def test_fetch_raises_wrong_account_when_character_absent():
+    from blackbox import character as ch
+
+    calls = []
+    ch_orig = ch._get
+    ch._get = lambda path, params, sessid, base, realm: calls.append(params) or [{"name": "SomeoneElse", "level": 1}]
+    try:
+        import pytest as _p
+
+        with _p.raises(ch.WrongAccount):
+            ch.fetch_snapshot("Max#1", sessid="x", character="QuicklyDruid")
+    finally:
+        ch._get = ch_orig
 
 
 def test_forced_request_bypasses_throttle(tmp_path, monkeypatch):

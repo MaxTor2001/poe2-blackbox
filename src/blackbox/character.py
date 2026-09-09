@@ -11,7 +11,11 @@ from pathlib import Path
 
 from blackbox.store import Store
 
-BASE = "https://www.pathofexile.com/character-window/"
+HOSTS = [
+    ("https://www.pathofexile.com/character-window/", {"realm": "poe2"}),
+    ("https://pathofexile2.com/character-window/", {}),
+    ("https://www.pathofexile.com/character-window/", {}),
+]
 USER_AGENT = "blackbox/0.1 (+https://github.com/itguy/poe2-blackbox)"
 MIN_INTERVAL = 60.0
 
@@ -20,8 +24,12 @@ class Forbidden(Exception):
     """The site refused: these endpoints need a logged-in session (POESESSID)."""
 
 
-def _get(path: str, params: dict, sessid: str | None) -> dict | list:
-    url = BASE + path + "?" + urllib.parse.urlencode({"realm": "poe2", **params})
+class WrongAccount(Exception):
+    """The account returned characters that don't include the one you are playing."""
+
+
+def _get(path: str, params: dict, sessid: str | None, base: str, realm: dict) -> dict | list:
+    url = base + path + "?" + urllib.parse.urlencode({**realm, **params})
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     if sessid:
         req.add_header("Cookie", f"POESESSID={sessid}")
@@ -40,31 +48,45 @@ def name_forms(account: str) -> list[str]:
     return [account] + ([other] if other else [])
 
 
+def _characters(query: dict, sessid: str | None, base: str, realm: dict) -> list[dict]:
+    try:
+        result = _get("get-characters", query, sessid, base, realm)
+        return result if isinstance(result, list) else []
+    except urllib.error.HTTPError as err:
+        if err.code == 404:
+            return []
+        raise
+
+
 def fetch_snapshot(account: str, sessid: str | None = None, character: str | None = None) -> dict:
-    """Snapshot `character` (the one you are playing, known from the log); else the site's best guess."""
-    chars, used = None, account
-    for form in name_forms(account):
-        try:
-            chars, used = _get("get-characters", {"accountName": form}, sessid), form
-            break
-        except urllib.error.HTTPError as err:
-            if err.code != 404:
-                raise
-    if not chars:
-        raise RuntimeError(f"no characters found for account {account!r}")
-    meta = _pick(chars, character)
-    name = meta["name"]
-    items = _get("get-items", {"accountName": used, "character": name}, sessid)
-    passives = _get("get-passive-skills", {"accountName": used, "character": name}, sessid)
-    return {"character": meta, "items": items.get("items", []), "passives": passives}
+    """Snapshot `character` (the one you are playing, known from the log).
 
-
-def _pick(chars: list[dict], character: str | None) -> dict:
+    PoE2 characters live on pathofexile2.com; the legacy pathofexile.com endpoint returns PoE1
+    characters even with realm=poe2. So try both hosts and only accept a list that contains
+    `character`, in the session's own characters and both Name#1234 / Name-1234 account forms.
+    """
+    queries = ([{}] if sessid else []) + [{"accountName": form} for form in name_forms(account)]
+    seen: list[str] = []
+    for base, realm in HOSTS:
+        for query in queries:
+            chars = _characters(query, sessid, base, realm)
+            seen += [c.get("name", "?") for c in chars]
+            meta = _match(chars, character)
+            if meta:
+                used = query.get("accountName", account)
+                name = meta["name"]
+                items = _get("get-items", {"accountName": used, "character": name}, sessid, base, realm)
+                passives = _get("get-passive-skills", {"accountName": used, "character": name}, sessid, base, realm)
+                return {"character": meta, "items": items.get("items", []), "passives": passives}
     if character:
-        match = next((c for c in chars if c.get("name") == character), None)
-        if match:
-            return match
-    return next((c for c in chars if c.get("lastActive")), chars[-1])
+        raise WrongAccount(f"{character!r} not among characters the site returned for {account!r}: {sorted(set(seen)) or 'none'}")
+    raise RuntimeError(f"no characters found for account {account!r}")
+
+
+def _match(chars: list[dict], character: str | None) -> dict | None:
+    if character:
+        return next((c for c in chars if c.get("name") == character), None)
+    return next((c for c in chars if c.get("lastActive")), chars[-1] if chars else None)
 
 
 class Snapshotter(threading.Thread):
@@ -98,6 +120,9 @@ class Snapshotter(threading.Thread):
                 snap = self.fetch(self.account, self.sessid, self.current)
             except Forbidden as err:
                 print(f"gear snapshots disabled: {err}")
+                return
+            except WrongAccount as err:
+                print(f"gear snapshots disabled: {err} (check --account)")
                 return
             except Exception as err:  # network or API failure must not kill the watcher
                 print(f"snapshot failed: {err!r}")

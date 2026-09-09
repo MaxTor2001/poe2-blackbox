@@ -35,6 +35,8 @@ def report(log_path: Path | None, grep: str | None = None, clips_dir: Path | Non
 
     saved = config.load()
     lines.append(f"settings: {config.config_path()} ({'exists' if config.config_path().exists() else 'missing'}) account={saved.get('account') or 'none'} sessid={'set' if saved.get('sessid') else 'none'}")
+    if saved.get("sessid"):
+        lines += _account_probe(saved.get("account"), saved.get("sessid"))
     path = log_path or default_log_path()
     lines.append(f"log: {path if path else 'not found'}")
     if path and path.exists():
@@ -103,4 +105,22 @@ def _log_summary(path: Path, grep: str | None) -> list[str]:
     out += [f"  {n:5}  {shape}" for shape, n in sorted(messages.items(), key=lambda kv: kv[1])[:60]]
     out.append("unparsed shapes (most common):")
     out += [f"  {n:5}  {shape}" for shape, n in shapes.most_common(25)]
+    return out
+
+
+def _account_probe(account: str | None, sessid: str) -> list[str]:
+    """List characters each host/realm returns, so we can see which one has the PoE2 characters."""
+    from blackbox.character import HOSTS, _characters, name_forms
+
+    out = ["account probe:"]
+    queries = [{}] + [{"accountName": f} for f in name_forms(account or "")]
+    for base, realm in HOSTS:
+        host = base.split("/")[2] + ("?" + "&".join(f"{k}={v}" for k, v in realm.items()) if realm else "")
+        for q in queries:
+            label = q.get("accountName", "(session)")
+            try:
+                names = [c.get("name", "?") for c in _characters(q, sessid, base, realm)]
+                out.append(f"  {host} [{label}]: {names[:12] or 'none'}")
+            except Exception as err:
+                out.append(f"  {host} [{label}]: error {err!r}")
     return out
