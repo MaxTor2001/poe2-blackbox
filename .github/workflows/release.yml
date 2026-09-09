@@ -20,10 +20,13 @@ jobs:
           New-Item -ItemType Directory dist -Force | Out-Null
           Copy-Item $bin.FullName, (Join-Path $bin.DirectoryName ffprobe.exe) dist/
       - name: Build exe
-        run: uv run pyinstaller --noconfirm --onefile --name blackbox --add-data "src/blackbox/templates;blackbox/templates" src/blackbox/__main__.py
+        run: uv run pyinstaller --noconfirm --onedir --noconsole --name blackbox --add-data "src/blackbox/templates;blackbox/templates" src/blackbox/__main__.py
       - name: Zip
         shell: pwsh
-        run: Compress-Archive -Path dist/blackbox.exe, dist/ffmpeg.exe, dist/ffprobe.exe, README.md -DestinationPath poe2-blackbox-windows.zip
+        run: |
+          Move-Item dist/ffmpeg.exe, dist/ffprobe.exe dist/blackbox/
+          Copy-Item README.md, README.ru.md dist/blackbox/
+          Compress-Archive -Path dist/blackbox -DestinationPath poe2-blackbox-windows.zip
       - uses: softprops/action-gh-release@v2
         with:
           files: poe2-blackbox-windows.zip

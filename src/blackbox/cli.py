@@ -58,6 +58,7 @@ def import_log(log_path, db):
 @click.option("--obs-password", envvar="OBS_PASSWORD", help="obs-websocket password, if set")
 def watch(log_path, db, account, sessid, clips, obs, obs_password):
     """Follow Client.txt, record events, probe ping and snapshot gear on zone entry."""
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     _watch(log_path, db, account, sessid, clips, obs, obs_password)
 
 
@@ -77,7 +78,7 @@ def _watch(log_path, db, account, sessid, clips, obs, obs_password):
     if clips:
         clipper = _connect_obs(db, obs_password) if obs else _start_recorder(db)
     click.echo(f"watching {path}")
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    _running["clipper"] = clipper
     try:
         for line in follow(path):
             event = parse_line(line)
@@ -96,6 +97,10 @@ def _watch(log_path, db, account, sessid, clips, obs, obs_password):
             clipper.close()
 
 
+_running: dict = {}
+HEADLESS = False  # set by __main__ in a windowed build
+
+
 def _log_to_file(path: Path) -> None:
     """Mirror everything echoed by click into a log file, so users can send it when reporting problems."""
     import atexit
@@ -106,7 +111,8 @@ def _log_to_file(path: Path) -> None:
     original = click.echo
 
     def echo(message=None, *args, **kwargs):
-        original(message, *args, **kwargs)
+        if not HEADLESS:
+            original(message, *args, **kwargs)
         original(message, file=handle)
         handle.flush()
 
@@ -175,10 +181,22 @@ def run(log_path, db, account, sessid, port, no_clips):
     import threading
     import webbrowser
 
+    from blackbox.tray import run_tray
+
+    url = f"http://127.0.0.1:{port}/"
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     threading.Thread(target=_serve, args=(db, port), daemon=True).start()
-    click.echo(f"death journal at http://127.0.0.1:{port}/")
-    webbrowser.open(f"http://127.0.0.1:{port}/")
-    _watch(log_path, db, account, sessid, not no_clips, False, None)
+    click.echo(f"death journal at {url}")
+    webbrowser.open(url)
+    worker = threading.Thread(target=_watch, args=(log_path, db, account, sessid, not no_clips, False, None), daemon=True)
+    worker.start()
+
+    def stop():
+        if _running.get("clipper"):
+            _running["clipper"].close()
+
+    run_tray(url, stop)  # blocks until Quit where a tray exists; returns at once otherwise
+    worker.join()
 
 
 @cli.command()
@@ -189,5 +207,8 @@ def diag(log_path, db, grep):
     """Write diag.txt with what this machine has and which log lines are not recognised."""
     text = report(log_path, grep, db.resolve().parent / "clips")
     Path("diag.txt").write_text(text, encoding="utf-8")
+    if HEADLESS:
+        click.launch("diag.txt")
+        return
     click.echo(text)
     click.echo("\nsaved to diag.txt")
