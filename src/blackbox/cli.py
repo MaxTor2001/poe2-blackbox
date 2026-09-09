@@ -8,6 +8,7 @@ import click
 
 from blackbox.capture import Recorder
 from blackbox.character import Snapshotter
+from blackbox.diag import report
 from blackbox.journal import deaths as build_deaths
 from blackbox.obs import Clipper, Obs
 from blackbox.log_lines import parse_line
@@ -63,6 +64,8 @@ def watch(log_path, db, account, sessid, clips, obs, obs_password):
 def _watch(log_path, db, account, sessid, clips, obs, obs_password):
     store = Store(db)
     path = _resolve_log(log_path)
+    _log_to_file(db.resolve().parent / "blackbox.log")
+    click.echo(report(path))
     pinger = Pinger(db)
     pinger.start()
     ClipboardWatcher(db).start()
@@ -91,6 +94,24 @@ def _watch(log_path, db, account, sessid, clips, obs, obs_password):
     finally:
         if clipper:
             clipper.close()
+
+
+def _log_to_file(path: Path) -> None:
+    """Mirror everything echoed by click into a log file, so users can send it when reporting problems."""
+    import atexit
+    import builtins
+
+    handle = path.open("a", encoding="utf-8")
+    atexit.register(handle.close)
+    original = click.echo
+
+    def echo(message=None, *args, **kwargs):
+        original(message, *args, **kwargs)
+        original(message, file=handle)
+        handle.flush()
+
+    click.echo = echo
+    builtins.print = lambda *a, **k: echo(" ".join(str(x) for x in a))
 
 
 def _start_recorder(db) -> Clipper | None:
@@ -158,3 +179,10 @@ def run(log_path, db, account, sessid, port, no_clips):
     click.echo(f"death journal at http://127.0.0.1:{port}/")
     webbrowser.open(f"http://127.0.0.1:{port}/")
     _watch(log_path, db, account, sessid, not no_clips, False, None)
+
+
+@cli.command()
+@LOG_OPTION
+def diag(log_path):
+    """Print what this machine has and which log lines are not recognised. Send the output when reporting problems."""
+    click.echo(report(log_path))
