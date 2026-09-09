@@ -21,3 +21,14 @@ def test_index_lists_deaths(tmp_path):
 def test_index_empty(tmp_path):
     html = TestClient(create_app(tmp_path / "empty.sqlite")).get("/").text
     assert "No deaths recorded yet" in html
+
+
+def test_character_page(tmp_path):
+    db = tmp_path / "t.sqlite"
+    store = Store(db)
+    for e in filter(None, map(parse_line, FIXTURE.read_text().splitlines())):
+        store.add(e)
+    client = TestClient(create_app(db))
+    html = client.get("/character/Zahrek").text
+    assert "Zahrek" in html and "Monk" in html and "Clearfell" in html
+    assert client.get("/character/Nobody").status_code == 404

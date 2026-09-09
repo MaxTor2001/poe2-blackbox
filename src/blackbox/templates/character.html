@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="refresh" content="10">
-<title>blackbox — death journal</title>
+<title>{{ c.name }} — blackbox</title>
 <style>
   body { font: 15px/1.5 system-ui, sans-serif; background: #15120f; color: #e8dcc8; margin: 0; padding: 2rem; }
   h1 { font-weight: 600; margin: 0 0 1.5rem; }
@@ -26,20 +25,14 @@
 </style>
 </head>
 <body>
-<h1><span>&#x2620;</span> Death journal</h1>
-{% if not deaths %}
-<p class="empty">No deaths recorded yet. Run <code>blackbox watch</code> alongside the game.</p>
-{% else %}
+<p><a href="/">&larr; Death journal</a></p>
+<h1>{{ c.name }} <span class="muted" style="font-size:.6em">{{ c.klass or '' }}{% if c.level %} · lvl {{ c.level }}{% endif %}</span></h1>
 <div class="cards">
-  <div class="card"><div class="big">{{ summary.total }}</div><div class="muted">deaths recorded</div></div>
-  <div class="card"><div class="label">Characters</div>
-    {% for name, c in summary.characters[:6] %}<div><b><a href="/character/{{ name | urlencode }}">{{ name }}</a></b> <span class="muted">{{ c.class or '' }}{% if c.level %} · lvl {{ c.level }}{% endif %}</span> <span class="count">×{{ c.count }}</span></div>{% endfor %}
-  </div>
-  <div class="card"><div class="label">Deadliest zones</div>
-    {% for zone, n in summary.zones %}<div>{{ zone }} <span class="count">×{{ n }}</span></div>{% endfor %}
-  </div>
+  <div class="card"><div class="big">{{ c.deaths | length }}</div><div class="muted">deaths</div></div>
+  <div class="card"><div class="big">{{ c.levels | length }}</div><div class="muted">level ups</div></div>
+  <div class="card"><div class="label">Seen</div><div>{{ c.first_seen.strftime('%Y-%m-%d') }} &rarr; {{ c.last_seen.strftime('%Y-%m-%d') }}</div></div>
 </div>
-{% include "deaths_table.html" %}
-{% endif %}
+{% if chart %}<div class="card" style="max-width:960px;margin-bottom:1.5rem">{{ chart | safe }}</div>{% endif %}
+{% if deaths %}{% include "deaths_table.html" %}{% else %}<p class="empty">No deaths for this character.</p>{% endif %}
 </body>
 </html>

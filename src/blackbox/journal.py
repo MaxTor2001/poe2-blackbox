@@ -104,3 +104,43 @@ def summary(records: list[Death]) -> dict:
     zones = sorted(by_zone.items(), key=lambda kv: -kv[1])[:5]
     chars = sorted(by_char.items(), key=lambda kv: kv[1]["last"], reverse=True)
     return {"characters": chars, "zones": zones, "total": len(records)}
+
+
+@dataclass
+class Character:
+    name: str
+    klass: str | None
+    level: int | None
+    first_seen: datetime
+    last_seen: datetime
+    levels: list[tuple[datetime, int]]
+    deaths: list[Death]
+
+
+def character(events: list[Event], records: list[Death], name: str) -> Character | None:
+    """Everything the log knows about one character: level timeline and deaths."""
+    levels = [(e.ts, e.data["level"]) for e in events if e.kind == "level_up" and e.data["character"] == name]
+    own = [d for d in records if d.character == name]
+    if not levels and not own:
+        return None
+    klass = next((e.data["class"] for e in reversed(events) if e.kind == "level_up" and e.data["character"] == name), None) or next((d.klass for d in own if d.klass), None)
+    stamps = [ts for ts, _ in levels] + [d.ts for d in own]
+    return Character(name, klass, levels[-1][1] if levels else None, min(stamps), max(stamps), levels, own)
+
+
+def level_chart(levels: list[tuple[datetime, int]], deaths: list[datetime], width=720, height=160) -> str:
+    """Inline SVG: level over time, deaths as red marks."""
+    if len(levels) < 2:
+        return ""
+    t0, t1 = levels[0][0], max(levels[-1][0], *deaths) if deaths else levels[-1][0]
+    span = max((t1 - t0).total_seconds(), 1)
+    top = max(lv for _, lv in levels)
+    x = lambda ts: 8 + (width - 16) * (ts - t0).total_seconds() / span
+    y = lambda lv: height - 26 - (height - 42) * lv / top
+    points = " ".join(f"{x(ts):.1f},{y(lv):.1f}" for ts, lv in levels)
+    marks = "".join(f'<line x1="{x(d):.1f}" y1="8" x2="{x(d):.1f}" y2="{height - 26}" stroke="#d55" stroke-width="1.5"/>' for d in deaths if t0 <= d <= t1)
+    return (f'<svg viewBox="0 0 {width} {height}" width="100%" height="{height}" role="img">'
+            f'<polyline points="{points}" fill="none" stroke="#e0a458" stroke-width="2"/>{marks}'
+            f'<text x="8" y="16" fill="#9c8f7a" font-size="11">lvl {top}</text>'
+            f'<text x="8" y="{height - 8}" fill="#9c8f7a" font-size="11">{t0:%Y-%m-%d}</text>'
+            f'<text x="{width - 8}" y="{height - 8}" fill="#9c8f7a" font-size="11" text-anchor="end">{t1:%Y-%m-%d}</text></svg>')
