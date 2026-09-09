@@ -12,4 +12,4 @@ def test_death_gets_context():
     (d,) = deaths(events)
     assert (d.character, d.klass, d.char_level) == ("Zahrek", "Monk", 2)
     assert (d.zone, d.area_level) == ("Clearfell", 16)
-    assert d.time_in_zone == timedelta(minutes=49, seconds=40)
+    assert d.time_in_zone == timedelta(minutes=49, seconds=41)

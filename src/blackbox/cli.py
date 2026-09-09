@@ -65,7 +65,7 @@ def _watch(log_path, db, account, sessid, clips, obs, obs_password):
     store = Store(db)
     path = _resolve_log(log_path)
     _log_to_file(db.resolve().parent / "blackbox.log")
-    click.echo(report(path))
+    click.echo(report(path, None, db.resolve().parent / "clips"))
     pinger = Pinger(db)
     pinger.start()
     ClipboardWatcher(db).start()
@@ -183,6 +183,11 @@ def run(log_path, db, account, sessid, port, no_clips):
 
 @cli.command()
 @LOG_OPTION
-def diag(log_path):
-    """Print what this machine has and which log lines are not recognised. Send the output when reporting problems."""
-    click.echo(report(log_path))
+@DB_OPTION
+@click.option("--grep", help="Also show up to 10 raw log lines containing this text")
+def diag(log_path, db, grep):
+    """Write diag.txt with what this machine has and which log lines are not recognised."""
+    text = report(log_path, grep, db.resolve().parent / "clips")
+    Path("diag.txt").write_text(text, encoding="utf-8")
+    click.echo(text)
+    click.echo("\nsaved to diag.txt")

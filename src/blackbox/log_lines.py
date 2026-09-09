@@ -33,7 +33,7 @@ class Event:
 
 def parse_line(line: str) -> Event | None:
     """Return an Event for a known line, or None for anything else."""
-    line = line.rstrip("\r\n")
+    line = line.rstrip()
     for kind, pattern in PATTERNS.items():
         m = pattern.match(line)
         if m:

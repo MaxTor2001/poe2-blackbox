@@ -43,17 +43,20 @@ def deaths(events: list[Event], pings=(), snapshots=(), clips: dict | None = Non
     """Replay events in order and attach the current context to every death."""
     zone = area_level = zone_since = None
     last_waystone = zone_waystone = None
+    awaiting_name = False
     levels: dict[str, tuple[str, int]] = {}
     result = []
     for e in events:
         if e.kind == "waystone":
             last_waystone = e
-        elif e.kind == "zone":
-            zone, zone_since = e.data["name"], e.ts
+        elif e.kind == "area":
+            area_level, zone_since, zone, awaiting_name = e.data["level"], e.ts, None, True
             recent = last_waystone and e.ts - last_waystone.ts <= WAYSTONE_WINDOW
             zone_waystone = last_waystone.data if recent else None
-        elif e.kind == "area":
-            area_level = e.data["level"]
+        elif e.kind == "zone" and awaiting_name:
+            # the game flips the scene name between the zone and its act label while loading;
+            # only the first name after area generation is the zone
+            zone, awaiting_name = e.data["name"], False
         elif e.kind == "level_up":
             levels[e.data["character"]] = (e.data["class"], e.data["level"])
         elif e.kind == "death":

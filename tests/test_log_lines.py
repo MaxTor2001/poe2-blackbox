@@ -40,3 +40,8 @@ def test_whisper_containing_slain_is_ignored():
 
 def test_connect():
     assert parsed()[1].data == {"host": "101.100.146.42", "port": 6112}
+
+
+def test_trailing_whitespace_is_tolerated():
+    line = "2025/01/16 21:04:52 1 a [INFO Client 1] Connecting to instance server at 101.100.146.42:6112 \r\n"
+    assert parse_line(line).kind == "connect"

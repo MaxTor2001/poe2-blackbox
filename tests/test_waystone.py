@@ -58,11 +58,15 @@ def test_death_gets_waystone_copied_before_zone_entry():
     w = {"name": "Desolate Route", "tier": 14, "mods": ["x"]}
     events = [
         Event(t, "waystone", w),
+        Event(t + timedelta(minutes=1), "area", {"level": 79, "area_id": "MapAugury", "seed": 1}),
         Event(t + timedelta(minutes=1), "zone", {"name": "Augury"}),
+        Event(t + timedelta(minutes=2), "zone", {"name": "Act 2"}),  # act label flicker, ignored
         Event(t + timedelta(minutes=5), "death", {"character": "Z"}),
+        Event(t + timedelta(minutes=30), "area", {"level": 1, "area_id": "Hideout", "seed": 1}),
         Event(t + timedelta(minutes=30), "zone", {"name": "Hideout"}),
         Event(t + timedelta(minutes=31), "death", {"character": "Z"}),
     ]
     first, second = deaths(events)
     assert first.waystone == w
+    assert first.zone == "Augury"
     assert second.waystone is None

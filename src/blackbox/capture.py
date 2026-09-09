@@ -22,12 +22,17 @@ def screen_input() -> list[str]:
     return ["-f", "x11grab", "-framerate", "30", "-i", os.environ.get("DISPLAY", ":0")]
 
 
+PROBE_FAILURES: dict[str, str] = {}
+
+
 def pick_encoder() -> list[str]:
-    """First encoder that can actually encode a frame on this machine."""
+    """First encoder that can actually encode a frame on this machine; failures are kept for diag."""
     for name, opts in ENCODERS:
         probe = [ffmpeg(), "-v", "error", "-f", "lavfi", "-i", "testsrc=size=256x256:rate=1", "-frames:v", "1", "-pix_fmt", "yuv420p", "-c:v", name, *opts, "-f", "null", "-"]
-        if subprocess.run(probe, capture_output=True).returncode == 0:
+        result = subprocess.run(probe, capture_output=True, text=True, errors="replace")
+        if result.returncode == 0:
             return ["-c:v", name, *opts]
+        PROBE_FAILURES[name] = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else f"exit {result.returncode}"
     raise RuntimeError("no working h264 encoder in ffmpeg")
 
 
