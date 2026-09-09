@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="10">
+<title>blackbox — death journal</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; background: #15120f; color: #e8dcc8; margin: 0; padding: 2rem; }
+  h1 { font-weight: 600; margin: 0 0 1.5rem; }
+  h1 span { color: #a33; }
+  table { border-collapse: collapse; width: 100%; max-width: 960px; }
+  th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #2c2620; }
+  th { color: #9c8f7a; font-weight: 500; }
+  .muted { color: #6e6456; }
+  .empty { color: #9c8f7a; padding: 2rem 0; }
+</style>
+</head>
+<body>
+<h1><span>&#x2620;</span> Death journal</h1>
+{% if not deaths %}
+<p class="empty">No deaths recorded yet. Run <code>blackbox watch</code> alongside the game.</p>
+{% else %}
+<table>
+  <tr><th>When</th><th>Character</th><th>Level</th><th>Zone</th><th>Area lvl</th><th>Time in zone</th></tr>
+  {% for d in deaths %}
+  <tr>
+    <td>{{ d.ts.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+    <td>{{ d.character }} <span class="muted">{{ d.klass or '' }}</span></td>
+    <td>{{ d.char_level if d.char_level is not none else '?' }}</td>
+    <td>{{ d.zone or '?' }}</td>
+    <td>{{ d.area_level if d.area_level is not none else '?' }}</td>
+    <td>{% if d.time_in_zone %}{{ (d.time_in_zone.total_seconds() // 60) | int }} min{% else %}?{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+</body>
+</html>

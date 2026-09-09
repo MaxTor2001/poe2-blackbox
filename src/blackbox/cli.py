@@ -4,6 +4,7 @@ from pathlib import Path
 
 import click
 
+from blackbox.journal import deaths as build_deaths
 from blackbox.log_lines import parse_line
 from blackbox.store import Store
 from blackbox.tail import default_log_path, follow, read_all
@@ -56,12 +57,18 @@ def watch(log_path, db):
 @DB_OPTION
 def deaths(db):
     """List recorded deaths with the zone each happened in."""
-    zone = "?"
-    level = "?"
-    for event in Store(db).events():
-        if event.kind == "zone":
-            zone = event.data["name"]
-        elif event.kind == "area":
-            level = event.data["level"]
-        elif event.kind == "death":
-            click.echo(f"{event.ts:%Y-%m-%d %H:%M:%S}  {event.data['character']}  died in {zone} (area level {level})")
+    for d in build_deaths(Store(db).events()):
+        click.echo(f"{d.ts:%Y-%m-%d %H:%M:%S}  {d.character} lvl {d.char_level}  died in {d.zone} (area level {d.area_level})")
+
+
+@cli.command()
+@DB_OPTION
+@click.option("--port", default=8765, show_default=True)
+def serve(db, port):
+    """Serve the death journal page on localhost."""
+    import uvicorn
+
+    from blackbox.web import create_app
+
+    click.echo(f"death journal at http://127.0.0.1:{port}/")
+    uvicorn.run(create_app(db), host="127.0.0.1", port=port, log_level="warning")
