@@ -80,12 +80,16 @@ def summarize_pings(pings, until: datetime) -> PingSummary | None:
     return PingSummary(sum(ok) / len(ok), max(ok), len(window) - len(ok), len(window))
 
 
-def latest_gear(snapshots, character: str, before: datetime) -> Gear | None:
-    """Most recent snapshot of `character` taken before `before`."""
-    match = [(ts, d) for ts, c, d in snapshots if c == character and ts <= before]
-    if not match:
+GEAR_WINDOW = timedelta(minutes=30)
+GEAR_GRACE = timedelta(minutes=3)  # a death-time snapshot lands a few seconds after the death line
+
+
+def latest_gear(snapshots, character: str, at: datetime) -> Gear | None:
+    """Snapshot of `character` closest to the death, from up to 30 min before to 3 min after."""
+    near = [(ts, d) for ts, c, d in snapshots if c == character and at - GEAR_WINDOW <= ts <= at + GEAR_GRACE]
+    if not near:
         return None
-    ts, data = match[-1]
+    ts, data = min(near, key=lambda pair: abs((pair[0] - at).total_seconds()))
     items = [(i.get("inventoryId", "?"), (i.get("name") or i.get("typeLine") or "?")) for i in data.get("items", [])]
     return Gear(ts, data.get("character", {}).get("level"), items)
 

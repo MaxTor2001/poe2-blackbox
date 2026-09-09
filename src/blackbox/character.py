@@ -77,9 +77,13 @@ class Snapshotter(threading.Thread):
         self.last_taken = 0.0
         self.current: str | None = None  # character you are playing, set from the log
 
-    def request(self, character: str | None = None) -> None:
+        self.force = False
+
+    def request(self, character: str | None = None, force: bool = False) -> None:
         if character:
             self.current = character
+        if force:
+            self.force = True
         self.wanted.set()
 
     def run(self):
@@ -87,7 +91,8 @@ class Snapshotter(threading.Thread):
         while True:
             self.wanted.wait()
             self.wanted.clear()
-            if time.monotonic() - self.last_taken < MIN_INTERVAL:
+            forced, self.force = self.force, False
+            if not forced and time.monotonic() - self.last_taken < MIN_INTERVAL:
                 continue
             try:
                 snap = self.fetch(self.account, self.sessid, self.current)

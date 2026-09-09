@@ -106,6 +106,8 @@ def _watch(log_path, db, account, sessid, clips, obs, obs_password, monitor=None
                 snapshotter.current = event.data["character"]
             if event.kind == "area" and snapshotter and snapshotter.current:
                 snapshotter.request()
+            if event.kind == "death" and snapshotter:
+                snapshotter.request(event.data["character"], force=True)
             if event.kind == "death" and clipper:
                 clipper.on_death(event.ts)
             if store.add(event):
