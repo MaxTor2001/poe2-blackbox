@@ -88,3 +88,4 @@ class Snapshotter(threading.Thread):
                 continue
             self.last_taken = time.monotonic()
             store.add_snapshot(datetime.now(), snap["character"]["name"], snap)
+            print(f"gear snapshot: {snap['character']['name']} lvl {snap['character'].get('level')}, {len(snap['items'])} items")
